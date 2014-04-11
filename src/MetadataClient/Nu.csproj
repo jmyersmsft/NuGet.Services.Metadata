@@ -76,6 +76,7 @@
     <Compile Include="Arguments.cs" />
     <Compile Include="BlobStorageArgs.cs" />
     <Compile Include="MakeMetadataArgs.cs" />
+    <Compile Include="MetadataJob.cs" />
     <Compile Include="MetadataTrigger.cs" />
     <Compile Include="MDTriggerArgs.cs" />
     <Compile Include="PackArgs.cs" />
