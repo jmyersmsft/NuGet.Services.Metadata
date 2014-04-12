@@ -22,6 +22,7 @@ namespace MetadataClient
     {
         public string PackageId { get; set; }
         public string Version { get; set; }
+        public bool Exists { get; set; }
         public IList<OwnerAssertion> Owners { get; set; }
     }
     public class PackageAssertion : PackageMinAssertion
@@ -132,11 +133,11 @@ INNER JOIN	LogPackageOwners WITH (NOLOCK)
 
 UPDATE		LogPackages
 SET			ProcessedDateTime = @ProcessedDateTime
-WHERE		ProcessedDateTime IS NULL
+WHERE		[Key] IN @packageAssertionKeys
 
 UPDATE		LogPackageOwners
 SET			ProcessedDateTime = @ProcessedDateTime
-WHERE		ProcessedDateTime IS NULL";
+WHERE		[Key] IN @packageOwnerAssertionKeys";
     }
 
     public static class MetadataJob
@@ -223,21 +224,28 @@ WHERE		ProcessedDateTime IS NULL";
                     // Extract the assertions as JArray
                     var jArrayAssertions = GetJArrayAssertions(packageAssertions, packageOwnerAssertions);
 
-                    var timeStamp = DateTime.UtcNow;
-                    var indexJSONBlob = GetIndexJSON();
-                    // Get Final JObject with timeStamp, previous, next links etc
-                    json = GetJObject(jArrayAssertions, timeStamp, indexJSONBlob);
+                    if (jArrayAssertions.Count > 0)
+                    {
+                        var timeStamp = DateTime.UtcNow;
+                        var indexJSONBlob = GetIndexJSON();
+                        // Get Final JObject with timeStamp, previous, next links etc
+                        json = GetJObject(jArrayAssertions, timeStamp, indexJSONBlob);
 
-                    var blobName = GetBlobName(timeStamp);
+                        var blobName = GetBlobName(timeStamp);
 
-                    // Write the blob
-                    await DumpJSON(json, blobName);
+                        // Write the blob
+                        await DumpJSON(json, blobName);
 
-                    // Update indexJSON blob and previous latest Blob
-                    await UpdateIndex(indexJSONBlob, json);
+                        // Update indexJSON blob and previous latest Blob
+                        await UpdateIndex(indexJSONBlob, json);
 
-                    // Mark assertions as processed
-                    // TODO
+                        // Mark assertions as processed
+                        await MarkAssertionsAsProcessed(connection, packageAssertions, packageOwnerAssertions);
+                    }
+                    else
+                    {
+                        Console.WriteLine("No Assertions to make");
+                    }
                 }
             }
             catch (Exception ex)
@@ -270,6 +278,7 @@ WHERE		ProcessedDateTime IS NULL";
                     packageAssertion = packagesAndOwners[key] = new PackageMinAssertion();
                     packageAssertion.PackageId = packageOwnerAssertion.PackageId;
                     packageAssertion.Version = packageOwnerAssertion.Version;
+                    packageAssertion.Exists = true;
                 }
                 if (packageAssertion.Owners == null)
                 {
@@ -375,6 +384,19 @@ WHERE		ProcessedDateTime IS NULL";
                 // Update indexJSON blob and previous latest Blob
                 // Release Leases
             }
+        }
+
+        private static async Task MarkAssertionsAsProcessed(SqlConnection connection, IEnumerable<PackageAssertion> packageAssertions,
+            IEnumerable<PackageOwnerAssertion> packageOwnerAssertions)
+        {
+            var packageAssertionKeys = (from packageAssertion in packageAssertions
+                                       select packageAssertion.Key).ToList();
+
+            var packageOwnerAssertionKeys = (from packageOwnerAssertion in packageOwnerAssertions
+                                            select packageOwnerAssertion.Key).ToList();
+
+            await connection.QueryAsync<int>(AssertionQueries.MarkAssertionsQuery,
+                new { packageAssertionKeys = packageAssertionKeys, packageOwnerAssertionKeys = packageOwnerAssertionKeys });
         }
     }
 }
