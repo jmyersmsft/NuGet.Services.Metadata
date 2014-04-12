@@ -26,6 +26,9 @@ namespace MetadataClient
     }
     public class PackageAssertion : PackageMinAssertion
     {
+        [JsonIgnore]
+        public int Key { get; set; }
+
         public string Nupkg { get; set; }
         public bool Listed { get; set; }
         public DateTime? Created { get; set; }
@@ -40,21 +43,24 @@ namespace MetadataClient
 
     public class PackageOwnerAssertion : OwnerAssertion
     {
+        [JsonIgnore]
+        public int Key { get; set; }
+        [JsonIgnore]
         public string PackageId { get; set; }
+        [JsonIgnore]
         public string Version { get; set; }
-
-        public OwnerAssertion GetOwnerAssertionAlone()
-        {
-            var ownerAssertion = new OwnerAssertion();
-            ownerAssertion.UserName = this.UserName;
-            ownerAssertion.Exists = this.Exists;
-            return ownerAssertion;
-        }
     }
 
-    public static class EventStreamQueries
+    public class IndexJson
     {
-        public const string GetEventsQuery = @"DECLARE		@PackageAssertions TABLE
+        public DateTime LastUpdated { get; set; }
+        public string OldestEventStream { get; set; }
+        public string NewestEventStream { get; set; }
+    }
+
+    public static class AssertionQueries
+    {
+        public const string GetAssertionsQuery = @"DECLARE		@PackageAssertions TABLE
 (
 			[Key] int
 		,	PackageId nvarchar(128)
@@ -121,6 +127,16 @@ FROM		(
 			) PackageOwnerAssertions
 INNER JOIN	LogPackageOwners WITH (NOLOCK)
 		ON	LogPackageOwners.[Key] = PackageOwnerAssertions.MaxKey";
+
+        public const string MarkAssertionsQuery = @"DECLARE		@ProcessedDateTime datetime = GETUTCDATE()
+
+UPDATE		LogPackages
+SET			ProcessedDateTime = @ProcessedDateTime
+WHERE		ProcessedDateTime IS NULL
+
+UPDATE		LogPackageOwners
+SET			ProcessedDateTime = @ProcessedDateTime
+WHERE		ProcessedDateTime IS NULL";
     }
 
     public static class MetadataJob
@@ -189,49 +205,39 @@ INNER JOIN	LogPackageOwners WITH (NOLOCK)
 
         public static async Task<JObject> DetectChanges(SqlConnectionStringBuilder sql)
         {
-            var jArray = new JArray();
+            JObject json = null;
+
             try
             {
                 using (var connection = await sql.ConnectTo())
                 {
                     Console.WriteLine("Connected to database in {0}/{1} obtained: {2}", connection.DataSource, connection.Database, connection.ClientConnectionId);
                     Console.WriteLine("Querying multiple queries...");
-                    var results = connection.QueryMultiple(EventStreamQueries.GetEventsQuery);
+                    var results = connection.QueryMultiple(AssertionQueries.GetAssertionsQuery);
                     Console.WriteLine("Completed multiple queries.");
 
                     Console.WriteLine("Extracting packageassertions and owner assertions...");
                     var packageAssertions = results.Read<PackageAssertion>();
                     var packageOwnerAssertions = results.Read<PackageOwnerAssertion>();
 
-                    var packagesAndOwners = new Dictionary<Tuple<string, string>, PackageMinAssertion>();
-                    foreach(var packageAssertion in packageAssertions)
-                    {
-                        packagesAndOwners.Add(new Tuple<string, string>(packageAssertion.PackageId, packageAssertion.Version), packageAssertion);
-                    }
+                    // Extract the assertions as JArray
+                    var jArrayAssertions = GetJArrayAssertions(packageAssertions, packageOwnerAssertions);
 
-                    foreach (var packageOwnerAssertion in packageOwnerAssertions)
-                    {
-                        var key = new Tuple<string, string>(packageOwnerAssertion.PackageId, packageOwnerAssertion.Version);
-                        PackageMinAssertion packageAssertion = null;
-                        if (!packagesAndOwners.TryGetValue(key, out packageAssertion))
-                        {
-                            packageAssertion = packagesAndOwners[key] = new PackageMinAssertion();
-                            packageAssertion.PackageId = packageOwnerAssertion.PackageId;
-                            packageAssertion.Version = packageOwnerAssertion.Version;
-                        }
-                        if (packageAssertion.Owners == null)
-                        {
-                            packageAssertion.Owners = new List<OwnerAssertion>();
-                        }
+                    var timeStamp = DateTime.UtcNow;
+                    var indexJSONBlob = GetIndexJSON();
+                    // Get Final JObject with timeStamp, previous, next links etc
+                    json = GetJObject(jArrayAssertions, timeStamp, indexJSONBlob);
 
-                        packageAssertion.Owners.Add(packageOwnerAssertion.GetOwnerAssertionAlone());
-                    }
+                    var blobName = GetBlobName(timeStamp);
 
-                    foreach (var value in packagesAndOwners.Values)
-                    {
-                        var packageAssertionJObject = (JObject)JToken.FromObject(value);
-                        jArray.Add(packageAssertionJObject);
-                    }
+                    // Write the blob
+                    await DumpJSON(json, blobName);
+
+                    // Update indexJSON blob and previous latest Blob
+                    await UpdateIndex(indexJSONBlob, json);
+
+                    // Mark assertions as processed
+                    // TODO
                 }
             }
             catch (Exception ex)
@@ -240,19 +246,101 @@ INNER JOIN	LogPackageOwners WITH (NOLOCK)
                 Console.WriteLine(ex.StackTrace);
             }
 
-            var timeStamp = DateTime.UtcNow;
-            var blobName = String.Format(EventFileNameFormat, EventsPrefix, timeStamp.ToString(DateTimeFormat));
-
-            var json = new JObject();
-            json.Add(EventTimeStamp, timeStamp);
-            json.Add(EventPrevious, EventNull);
-            json.Add(EventNext, EventNull);
-            json.Add(EventAssertions, jArray);
-            await DumpJSON(json, blobName);
-
             return json;
         }
 
+        /// <summary>
+        /// Gets the assertions as JArray from the packageAssertions and packageOwnerAssertions queried from the database
+        /// This can be tested separately to verify that the right jArray of assertions are created using mocked assertions
+        /// </summary>
+        public static JArray GetJArrayAssertions(IEnumerable<PackageAssertion> packageAssertions, IEnumerable<PackageOwnerAssertion> packageOwnerAssertions)
+        {
+            var packagesAndOwners = new Dictionary<Tuple<string, string>, PackageMinAssertion>();
+            foreach (var packageAssertion in packageAssertions)
+            {
+                packagesAndOwners.Add(new Tuple<string, string>(packageAssertion.PackageId, packageAssertion.Version), packageAssertion);
+            }
+
+            foreach (var packageOwnerAssertion in packageOwnerAssertions)
+            {
+                var key = new Tuple<string, string>(packageOwnerAssertion.PackageId, packageOwnerAssertion.Version);
+                PackageMinAssertion packageAssertion = null;
+                if (!packagesAndOwners.TryGetValue(key, out packageAssertion))
+                {
+                    packageAssertion = packagesAndOwners[key] = new PackageMinAssertion();
+                    packageAssertion.PackageId = packageOwnerAssertion.PackageId;
+                    packageAssertion.Version = packageOwnerAssertion.Version;
+                }
+                if (packageAssertion.Owners == null)
+                {
+                    packageAssertion.Owners = new List<OwnerAssertion>();
+                }
+
+                packageAssertion.Owners.Add(packageOwnerAssertion);
+            }
+
+            var jArray = new JArray();
+            foreach (var value in packagesAndOwners.Values)
+            {
+                var packageAssertionJObject = (JObject)JToken.FromObject(value);
+                jArray.Add(packageAssertionJObject);
+            }
+
+            return jArray;
+        }
+
+        private static CloudBlockBlob GetIndexJSON()
+        {
+            return null;
+        }
+
+        private static JObject GetJSON(CloudBlockBlob blob)
+        {
+            throw new NotImplementedException();
+        }
+
+        private static JObject GetJObject(JArray jArrayAssertions, DateTime timeStamp, CloudBlockBlob indexJSONBlob)
+        {
+            JObject indexJSON = null;
+            if (indexJSONBlob != null)
+            {
+                indexJSON = GetJSON(indexJSONBlob);
+            }
+
+            JObject jObject = GetJObject(jArrayAssertions, timeStamp, indexJSON);
+
+            return jObject;
+        }
+
+        /// <summary>
+        /// Gets the final JObject given the assertions as jArray, timeStamp and indexJSON
+        /// This can be tested separately to verify that the index is used and updated correctly using a mocked indexJSON JObject
+        /// </summary>
+        public static JObject GetJObject(JArray jArrayAssertions, DateTime timeStamp, JObject indexJSON)
+        {
+            var json = new JObject();
+            json.Add(EventTimeStamp, timeStamp);
+            if (indexJSON == null)
+            {
+                json.Add(EventPrevious, EventNull);
+            }
+            else
+            {
+                throw new NotImplementedException();
+            }
+            json.Add(EventNext, EventNull);
+            json.Add(EventAssertions, jArrayAssertions);
+            return json;
+        }
+
+        public static string GetBlobName(DateTime timeStamp)
+        {
+            return String.Format(EventFileNameFormat, EventsPrefix, timeStamp.ToString(DateTimeFormat));
+        }
+
+        /// <summary>
+        /// This function simply dumps the json onto console and to the blob if applicable
+        /// </summary>
         private static async Task DumpJSON(JObject json, string blobName)
         {
             if(json == null)
@@ -277,6 +365,16 @@ INNER JOIN	LogPackageOwners WITH (NOLOCK)
                 Console.WriteLine("Not Dumping to cloud...\n");
             }
             Console.WriteLine(jsonString);
+        }
+
+        private static async Task UpdateIndex(CloudBlockBlob indexJSONBlob, JObject latestEventStream)
+        {
+            if (indexJSONBlob != null)
+            {
+                // Acquire Leases
+                // Update indexJSON blob and previous latest Blob
+                // Release Leases
+            }
         }
     }
 }
