@@ -389,14 +389,32 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
         private static async Task MarkAssertionsAsProcessed(SqlConnection connection, IEnumerable<PackageAssertion> packageAssertions,
             IEnumerable<PackageOwnerAssertion> packageOwnerAssertions)
         {
-            var packageAssertionKeys = (from packageAssertion in packageAssertions
+            var allPackageAssertionKeys = (from packageAssertion in packageAssertions
                                        select packageAssertion.Key).ToList();
 
-            var packageOwnerAssertionKeys = (from packageOwnerAssertion in packageOwnerAssertions
+            var allPackageOwnerAssertionKeys = (from packageOwnerAssertion in packageOwnerAssertions
                                             select packageOwnerAssertion.Key).ToList();
 
-            await connection.QueryAsync<int>(AssertionQueries.MarkAssertionsQuery,
-                new { packageAssertionKeys = packageAssertionKeys, packageOwnerAssertionKeys = packageOwnerAssertionKeys });
+            // NOTE THAT the number of keys in the 'IN' clause of a SQL query is restricted to 2100
+            // Let us keep it simple and restrict the number to 1000. Since there are 2 IN queries,
+            // 1 for package assertions and 1 for package owner assertions, set the limit as 500
+            var maxINClauseKeysCount = 500;
+            var index = 0;
+
+            var packageAssertionsCount = allPackageAssertionKeys.Count;
+            var ownerAssertionsCount = allPackageOwnerAssertionKeys.Count;
+            while (index < packageAssertionsCount || index < ownerAssertionsCount)
+            {
+                var packageAssertionKeys = index < packageAssertionsCount ?
+                allPackageAssertionKeys.GetRange(index, Math.Min(maxINClauseKeysCount, packageAssertionsCount - index)) : new List<int>();
+                var packageOwnerAssertionKeys = index < ownerAssertionsCount ?
+                allPackageOwnerAssertionKeys.GetRange(index, Math.Min(maxINClauseKeysCount, ownerAssertionsCount - index)) : new List<int>();
+
+                await connection.QueryAsync<int>(AssertionQueries.MarkAssertionsQuery,
+                    new { packageAssertionKeys = packageAssertionKeys, packageOwnerAssertionKeys = packageOwnerAssertionKeys });
+
+                index += maxINClauseKeysCount;
+            }
         }
     }
 }
