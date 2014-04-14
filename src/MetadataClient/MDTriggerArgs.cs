@@ -14,7 +14,10 @@ namespace MetadataClient
         [ArgDescription("Container name")]
         public string ContainerName { get; set; }
 
-        [ArgDescription("DumpToCloud")]
-        public bool DumpToCloud { get; set; }
+        [ArgDescription("PushToCloud")]
+        public bool PushToCloud { get; set; }
+
+        [ArgDescription("UpdateTables")]
+        public bool UpdateTables { get; set; }
     }
 }

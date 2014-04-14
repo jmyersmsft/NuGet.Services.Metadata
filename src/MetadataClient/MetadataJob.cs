@@ -15,6 +15,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Linq;
 using System.Collections;
+using Newtonsoft.Json.Serialization;
 
 namespace MetadataClient
 {
@@ -50,13 +51,6 @@ namespace MetadataClient
         public string PackageId { get; set; }
         [JsonIgnore]
         public string Version { get; set; }
-    }
-
-    public class IndexJson
-    {
-        public DateTime LastUpdated { get; set; }
-        public string OldestEventStream { get; set; }
-        public string NewestEventStream { get; set; }
     }
 
     public static class AssertionQueries
@@ -152,16 +146,25 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
 
         // Property Name constants
         private const string EventTimeStamp = "timestamp";
-        private const string EventPrevious = "previous";
-        private const string EventNext = "next";
-        private const string EventNull = "null";
+        private const string EventOlder = "older";
+        private const string EventNewer = "newer";
+        private const string EventLastUpdated = "lastupdated";
+        private const string EventOldest = "oldest";
+        private const string EventNewest = "newest";
+        private const string EventNull = "";
         private const string EventAssertions = "assertions";
         private const string PackageId = "PackageId";
         private const string PackageVersion = "Version";
         private const string PackageNupkg = "nupkg";
         private const string PackageOwners = "owners";
 
-        public static async Task Start(CloudStorageAccount blobAccount, CloudBlobContainer container, SqlConnectionStringBuilder sql, bool dumpToCloud)
+        private static readonly JObject EmptyIndexJSON = JObject.Parse(@"{
+  '" + EventLastUpdated + @"': '',
+  '" + EventOldest + @"': '',
+  '" + EventNewest + @"': ''
+}");
+
+        public static async Task Start(CloudStorageAccount blobAccount, CloudBlobContainer container, SqlConnectionStringBuilder sql, bool pushToCloud, bool updateTables)
         {
             Console.WriteLine("Started polling...");
             Console.WriteLine("Looking for changes in {0}/{1} ", sql.DataSource, sql.InitialCatalog);
@@ -172,7 +175,8 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
             }
 
             Container = container;
-            DumpToCloud = dumpToCloud;
+            PushToCloud = pushToCloud;
+            UpdateTables = updateTables;
 
             // The blobAccount and container can potentially be used to put the trigger information
             // on package blobs or otherwise. Not Important now
@@ -198,7 +202,13 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
             set;
         }
 
-        public static bool DumpToCloud
+        public static bool PushToCloud
+        {
+            get;
+            private set;
+        }
+
+        public static bool UpdateTables
         {
             get;
             private set;
@@ -227,24 +237,39 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
                     if (jArrayAssertions.Count > 0)
                     {
                         var timeStamp = DateTime.UtcNow;
-                        var indexJSONBlob = GetIndexJSON();
+                        var indexJSONBlob = Container.GetBlockBlobReference(IndexJson);
+
+                        JObject indexJSON = await GetJSON(indexJSONBlob) ?? (JObject)EmptyIndexJSON.DeepClone();
+
                         // Get Final JObject with timeStamp, previous, next links etc
-                        json = GetJObject(jArrayAssertions, timeStamp, indexJSONBlob);
+                        json = GetJObject(jArrayAssertions, timeStamp, indexJSON);
 
                         var blobName = GetBlobName(timeStamp);
 
-                        // Write the blob
-                        await DumpJSON(json, blobName);
+                        // Write the blob. Update indexJSON blob and previous latest Blob
+                        await DumpJSON(json, blobName, timeStamp, indexJSON, indexJSONBlob);
 
-                        // Update indexJSON blob and previous latest Blob
-                        await UpdateIndex(indexJSONBlob, json);
-
-                        // Mark assertions as processed
-                        await MarkAssertionsAsProcessed(connection, packageAssertions, packageOwnerAssertions);
+                        if (UpdateTables)
+                        {
+                            // Mark assertions as processed
+                            await MarkAssertionsAsProcessed(connection, packageAssertions, packageOwnerAssertions);
+                        }
+                        else
+                        {
+                            Console.WriteLine("Not Updating tables...");
+                        }
                     }
                     else
                     {
                         Console.WriteLine("No Assertions to make");
+                        if (UpdateTables)
+                        {
+                            Console.WriteLine("And, not updating tables");
+                        }
+                        else
+                        {
+                            Console.WriteLine("Not updating tables anyways...");
+                        }
                     }
                 }
             }
@@ -298,27 +323,21 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
             return jArray;
         }
 
-        private static CloudBlockBlob GetIndexJSON()
+        private static async Task<JObject> GetJSON(CloudBlockBlob blob)
         {
-            return null;
-        }
-
-        private static JObject GetJSON(CloudBlockBlob blob)
-        {
-            throw new NotImplementedException();
-        }
-
-        private static JObject GetJObject(JArray jArrayAssertions, DateTime timeStamp, CloudBlockBlob indexJSONBlob)
-        {
-            JObject indexJSON = null;
-            if (indexJSONBlob != null)
+            if (await blob.ExistsAsync())
             {
-                indexJSON = GetJSON(indexJSONBlob);
+                try
+                {
+                    var json = await blob.DownloadTextAsync();
+                    return JObject.Parse(json);
+                }
+                catch (StorageException ex)
+                {
+                    Console.WriteLine("Azure Storage Exception : " + ex.ToString());
+                }
             }
-
-            JObject jObject = GetJObject(jArrayAssertions, timeStamp, indexJSON);
-
-            return jObject;
+            return null;
         }
 
         /// <summary>
@@ -331,13 +350,19 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
             json.Add(EventTimeStamp, timeStamp);
             if (indexJSON == null)
             {
-                json.Add(EventPrevious, EventNull);
+                json.Add(EventOlder, EventNull);
             }
             else
             {
-                throw new NotImplementedException();
+                var eventOlder = indexJSON.SelectToken(EventNewest);
+                if (eventOlder == null)
+                {
+                    throw new ArgumentException("indexJSON does not have a token 'newest'");
+                }
+                Console.WriteLine("Event newest in empty index json is :" + eventOlder.ToString());
+                json.Add(EventOlder, eventOlder.ToString());
             }
-            json.Add(EventNext, EventNull);
+            json.Add(EventNewer, EventNull);
             json.Add(EventAssertions, jArrayAssertions);
             return json;
         }
@@ -350,23 +375,81 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
         /// <summary>
         /// This function simply dumps the json onto console and to the blob if applicable
         /// </summary>
-        private static async Task DumpJSON(JObject json, string blobName)
+        private static async Task DumpJSON(JObject json, string blobName, DateTime timeStamp, JObject indexJSON, CloudBlockBlob indexJSONBlob)
         {
             if(json == null)
             {
                 throw new ArgumentNullException("json");
             }
 
+            if(indexJSON == null)
+            {
+                throw new ArgumentNullException("indexJSON");
+            }
+
             Console.WriteLine("BlobName: {0}\n", blobName);
 
             var jsonString = json;
-            if (DumpToCloud)
+            Console.WriteLine("index.json PREVIOUS: \n" + indexJSON.ToString());
+            if (PushToCloud)
             {
                 Console.WriteLine("Dumping to {0}", blobName);
-                var blob = Container.GetBlockBlobReference(blobName);
+                var latestBlob = Container.GetBlockBlobReference(blobName);
+
+                // First upload the created block
                 using (var stream = new MemoryStream(Encoding.Default.GetBytes(json.ToString()), false))
                 {
-                    await blob.UploadFromStreamAsync(stream);
+                    await latestBlob.UploadFromStreamAsync(stream);
+                }
+
+                // First upload the created block
+                using (var stream = new MemoryStream(Encoding.Default.GetBytes(json.ToString()), false))
+                {
+                    await latestBlob.UploadFromStreamAsync(stream);
+                }
+
+                string oldestBlobName = null;
+                string previousLatestBlobName = null;
+                oldestBlobName = indexJSON.SelectToken(EventOldest).ToString();
+                previousLatestBlobName = indexJSON.SelectToken(EventNewest).ToString();
+
+                // Update the previous latest block
+                if(String.IsNullOrEmpty(previousLatestBlobName))
+                {
+                    if(!String.IsNullOrEmpty(oldestBlobName))
+                    {
+                        Console.WriteLine("WARNING: OldestBlobName is not empty when newestBlobName is. Something went wrong somewhere!!!");
+                    }
+                    // Both the oldest and newest event blob names are empty
+                    // Set the oldest now
+                    indexJSON[EventOldest] = blobName;
+                }
+                else
+                {
+                    CloudBlockBlob previousLatestBlob = Container.GetBlockBlobReference(previousLatestBlobName);
+                    JObject previousLatestJSON = await GetJSON(previousLatestBlob);
+                    if (previousLatestJSON == null)
+                    {
+                        throw new InvalidOperationException("Previous latest blob does not exist");
+                    }
+
+                    previousLatestJSON[EventNewer] = blobName;
+                    // Finally, upload the index block
+                    using (var stream = new MemoryStream(Encoding.Default.GetBytes(previousLatestJSON.ToString()), false))
+                    {
+                        await previousLatestBlob.UploadFromStreamAsync(stream);
+                    }
+                    Console.WriteLine("Previous Latest Blob: \n" + previousLatestJSON.ToString());
+                }
+
+                // TODO: Should we store the URL instead?
+                indexJSON[EventNewest] = blobName;
+                indexJSON[EventLastUpdated] = timeStamp;
+
+                // Finally, upload the index block
+                using (var stream = new MemoryStream(Encoding.Default.GetBytes(indexJSON.ToString()), false))
+                {
+                    await indexJSONBlob.UploadFromStreamAsync(stream);
                 }
             }
             else
@@ -374,6 +457,7 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
                 Console.WriteLine("Not Dumping to cloud...\n");
             }
             Console.WriteLine(jsonString);
+            Console.WriteLine("index.json NEW: \n" + indexJSON.ToString());
         }
 
         private static async Task UpdateIndex(CloudBlockBlob indexJSONBlob, JObject latestEventStream)

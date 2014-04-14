@@ -107,7 +107,7 @@ namespace MetadataClient
             Console.WriteLine("Trimming network protocol if any");
             sql.TrimNetworkProtocol();
 
-            MetadataJob.Start(account, container, sql, args.DumpToCloud).Wait();
+            MetadataJob.Start(account, container, sql, args.PushToCloud, args.UpdateTables).Wait();
         }
 
         static string Nuget = "http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd";
