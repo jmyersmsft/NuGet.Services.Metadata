@@ -21,10 +21,17 @@ namespace MetadataClient
 {
     public class PackageMinAssertion
     {
+        [JsonProperty(Order = -2)]
         public string PackageId { get; set; }
+        [JsonProperty(Order = -2)]
         public string Version { get; set; }
+        [JsonProperty(Order = -2)]
         public bool Exists { get; set; }
         public IList<OwnerAssertion> Owners { get; set; }
+        public bool ShouldSerializeOwners()
+        {
+            return (Owners != null && Owners.Count > 0);
+        }
     }
     public class PackageAssertion : PackageMinAssertion
     {
@@ -39,7 +46,7 @@ namespace MetadataClient
 
     public class OwnerAssertion
     {
-        public string UserName { get; set; }
+        public string Username { get; set; }
         public bool Exists { get; set; }
     }
 
@@ -151,17 +158,18 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
         private const string EventLastUpdated = "lastupdated";
         private const string EventOldest = "oldest";
         private const string EventNewest = "newest";
-        private const string EventNull = "";
+        private const string EventNull = null;
         private const string EventAssertions = "assertions";
         private const string PackageId = "PackageId";
         private const string PackageVersion = "Version";
         private const string PackageNupkg = "nupkg";
         private const string PackageOwners = "owners";
 
+        private static readonly JsonSerializerSettings DefaultJsonSerializerSettings = new JsonSerializerSettings() { ContractResolver = new CamelCasePropertyNamesContractResolver() };
         private static readonly JObject EmptyIndexJSON = JObject.Parse(@"{
   '" + EventLastUpdated + @"': '',
-  '" + EventOldest + @"': '',
-  '" + EventNewest + @"': ''
+  '" + EventOldest + @"': null,
+  '" + EventNewest + @"': null
 }");
 
         public static async Task Start(CloudStorageAccount blobAccount, CloudBlobContainer container, SqlConnectionStringBuilder sql, bool pushToCloud, bool updateTables)
@@ -313,14 +321,8 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
                 packageAssertion.Owners.Add(packageOwnerAssertion);
             }
 
-            var jArray = new JArray();
-            foreach (var value in packagesAndOwners.Values)
-            {
-                var packageAssertionJObject = (JObject)JToken.FromObject(value);
-                jArray.Add(packageAssertionJObject);
-            }
-
-            return jArray;
+            var json = JsonConvert.SerializeObject(packagesAndOwners.Values, Formatting.Indented, DefaultJsonSerializerSettings);
+            return JArray.Parse(json);
         }
 
         private static async Task<JObject> GetJSON(CloudBlockBlob blob)
@@ -360,7 +362,7 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
                     throw new ArgumentException("indexJSON does not have a token 'newest'");
                 }
                 Console.WriteLine("Event newest in empty index json is :" + eventOlder.ToString());
-                json.Add(EventOlder, eventOlder.ToString());
+                json.Add(EventOlder, eventOlder.Type == JTokenType.Null ? EventNull : eventOlder.ToString());
             }
             json.Add(EventNewer, EventNull);
             json.Add(EventAssertions, jArrayAssertions);
@@ -389,18 +391,11 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
 
             Console.WriteLine("BlobName: {0}\n", blobName);
 
-            var jsonString = json;
             Console.WriteLine("index.json PREVIOUS: \n" + indexJSON.ToString());
             if (PushToCloud)
             {
                 Console.WriteLine("Dumping to {0}", blobName);
                 var latestBlob = Container.GetBlockBlobReference(blobName);
-
-                // First upload the created block
-                using (var stream = new MemoryStream(Encoding.Default.GetBytes(json.ToString()), false))
-                {
-                    await latestBlob.UploadFromStreamAsync(stream);
-                }
 
                 // First upload the created block
                 using (var stream = new MemoryStream(Encoding.Default.GetBytes(json.ToString()), false))
@@ -456,7 +451,7 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
             {
                 Console.WriteLine("Not Dumping to cloud...\n");
             }
-            Console.WriteLine(jsonString);
+            Console.WriteLine(json);
             Console.WriteLine("index.json NEW: \n" + indexJSON.ToString());
         }
 
