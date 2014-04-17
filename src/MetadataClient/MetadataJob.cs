@@ -54,6 +54,15 @@ namespace MetadataClient
         public PackageAssertion() { }
         internal PackageAssertion(string packageId, string version, bool exists) : base(packageId, version, exists) { }
 
+        internal PackageAssertion(string packageId, string version, bool exists, string nupkg, bool listed, DateTime? created, DateTime? published)
+            : base(packageId, version, exists)
+        {
+            Nupkg = nupkg;
+            Listed = listed;
+            Created = created;
+            Published = published;
+        }
+
         [JsonIgnore]
         public int Key { get; set; }
 
@@ -340,7 +349,17 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
             var packagesAndOwners = new Dictionary<Tuple<string, string>, PackageMinAssertion>();
             foreach (var packageAssertion in packageAssertions)
             {
-                packagesAndOwners.Add(new Tuple<string, string>(packageAssertion.PackageId, packageAssertion.Version), packageAssertion);
+                var key = new Tuple<string, string>(packageAssertion.PackageId, packageAssertion.Version);
+                if (packageAssertion.Exists)
+                {
+                    packagesAndOwners.Add(key, packageAssertion);
+                }
+                else
+                {
+                    // If exists is false, it means the package should be deleted
+                    // Ignore all the other fields/columns
+                    packagesAndOwners.Add(key, new PackageMinAssertion(packageAssertion.PackageId, packageAssertion.Version, false));
+                }
             }
 
             foreach (var packageOwnerAssertion in packageOwnerAssertions)
