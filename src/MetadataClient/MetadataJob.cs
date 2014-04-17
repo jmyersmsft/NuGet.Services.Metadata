@@ -21,6 +21,18 @@ namespace MetadataClient
 {
     public class PackageMinAssertion
     {
+        /// <summary>
+        /// Adding a parameterless default constructor for supporting Dapper and have internal constructor for writing simple unit tests
+        /// Could have added a constructor with a signature matching the sql query, but this is less code
+        /// </summary>
+        public PackageMinAssertion() {}
+        internal PackageMinAssertion(string packageId, string version, bool exists)
+        {
+            PackageId = packageId;
+            Version = version;
+            Exists = exists;
+        }
+
         [JsonProperty(Order = -2)]
         public string PackageId { get; set; }
         [JsonProperty(Order = -2)]
@@ -35,6 +47,13 @@ namespace MetadataClient
     }
     public class PackageAssertion : PackageMinAssertion
     {
+        /// <summary>
+        /// Adding a parameterless default constructor for supporting Dapper and have internal constructor for writing simple unit tests
+        /// Could have added a constructor with a signature matching the sql query, but this is less code
+        /// </summary>
+        public PackageAssertion() { }
+        internal PackageAssertion(string packageId, string version, bool exists) : base(packageId, version, exists) { }
+
         [JsonIgnore]
         public int Key { get; set; }
 
@@ -46,12 +65,34 @@ namespace MetadataClient
 
     public class OwnerAssertion
     {
+        /// <summary>
+        /// Adding a parameterless default constructor for supporting Dapper and have internal constructor for writing simple unit tests
+        /// Could have added a constructor with a signature matching the sql query, but this is less code
+        /// </summary>
+        public OwnerAssertion() { }
+        internal OwnerAssertion(string username, bool exists)
+        {
+            Username = username;
+            Exists = exists;
+        }
         public string Username { get; set; }
         public bool Exists { get; set; }
     }
 
     public class PackageOwnerAssertion : OwnerAssertion
     {
+        /// <summary>
+        /// Adding a parameterless default constructor for supporting Dapper and have internal constructor for writing simple unit tests
+        /// Could have added a constructor with a signature matching the sql query, but this is less code
+        /// </summary>
+        public PackageOwnerAssertion() { }
+
+        internal PackageOwnerAssertion(string packageId, string version, string username, bool exists)
+            : base(username, exists)
+        {
+            PackageId = packageId;
+            Version = version;
+        }
         [JsonIgnore]
         public int Key { get; set; }
         [JsonIgnore]
@@ -453,16 +494,6 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
             }
             Console.WriteLine(json);
             Console.WriteLine("index.json NEW: \n" + indexJSON.ToString());
-        }
-
-        private static async Task UpdateIndex(CloudBlockBlob indexJSONBlob, JObject latestEventStream)
-        {
-            if (indexJSONBlob != null)
-            {
-                // Acquire Leases
-                // Update indexJSON blob and previous latest Blob
-                // Release Leases
-            }
         }
 
         private static async Task MarkAssertionsAsProcessed(SqlConnection connection, IEnumerable<PackageAssertion> packageAssertions,
