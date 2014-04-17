@@ -113,6 +113,9 @@
     <None Include="App.config">
       <SubType>Designer</SubType>
     </None>
+    <None Include="context\CatalogPageFrame.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Include="context\CatalogFrame.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
@@ -129,6 +132,9 @@
       <SubType>Designer</SubType>
     </None>
     <None Include="sparql\All.rq">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Include="sparql\CatalogPage.rq">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Include="sparql\ListResources.rq">
