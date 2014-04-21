@@ -19,14 +19,71 @@ using Newtonsoft.Json.Serialization;
 
 namespace MetadataClient
 {
-    public class PackageMinAssertion
+    // We could totally get rid of this interface and use PackageOwnerAssertionSet
+    // It just adds more clarity
+    public interface IAssertionSet
+    {
+        string PackageId { get; }
+        bool Exists { get; }
+        HashSet<OwnerAssertion> Owners { get; set; }
+    }
+
+    // We could totally get rid of this interface and use PackageAssertionSet
+    // It just adds more clarity
+    public interface IPackageAssertionSet : IAssertionSet
+    {
+        string Version { get; }
+    }
+    /// <summary>
+    /// NOTE THAT this assertion has the 'packageId' and 'Owners' information only
+    /// This is the least common denominator of all assertions. Just the packageId and list of owners
+    /// If the owners list is null or empty, only the packageId will be serialized
+    /// This assertion will be directly used when there are only 'Remove Owner' assertions on a package
+    /// Even there is 1 AddOwner assertion, its immediate derived class will be need to be used
+    /// </summary>
+    public class PackageOwnerAssertionSet : IAssertionSet
+    {
+        public PackageOwnerAssertionSet() {}
+        internal PackageOwnerAssertionSet(string packageId)
+        {
+            PackageId = packageId;
+        }
+
+        public string PackageId { get; set; }
+
+        public bool Exists
+        {
+            get
+            {
+                if (Owners == null || Owners.Count == 0)
+                {
+                    throw new InvalidOperationException("Owners cannot be null or empty");
+                }
+                return Owners.Where(o => o.Exists).FirstOrDefault() != null;
+            }
+        }
+
+        public HashSet<OwnerAssertion> Owners { get; set; }
+
+        public bool ShouldSerializeExists()
+        {
+            return Exists;
+        }
+    }
+
+    /// <summary>
+    /// NOTE THAT this assertion has the 'packageVersion' information in addition to the 'packageId', 'Owners' and 'Exists' information from its base classes
+    /// This assertion will be directly used for a delete package assertion. If there are owner assertions, they will get added here as well. If not, they will be ignored
+    /// This assertion does not contain the other information used during 'Add Package' or 'Edit Package' like 'Created Date' and so on
+    /// </summary>
+    public class PackageMinAssertionSet : IPackageAssertionSet
     {
         /// <summary>
         /// Adding a parameterless default constructor for supporting Dapper and have internal constructor for writing simple unit tests
         /// Could have added a constructor with a signature matching the sql query, but this is less code
         /// </summary>
-        public PackageMinAssertion() {}
-        internal PackageMinAssertion(string packageId, string version, bool exists)
+        public PackageMinAssertionSet() {}
+        internal PackageMinAssertionSet(string packageId, string version, bool exists)
         {
             PackageId = packageId;
             Version = version;
@@ -35,26 +92,35 @@ namespace MetadataClient
 
         [JsonProperty(Order = -2)]
         public string PackageId { get; set; }
+
         [JsonProperty(Order = -2)]
         public string Version { get; set; }
+
         [JsonProperty(Order = -2)]
         public bool Exists { get; set; }
-        public IList<OwnerAssertion> Owners { get; set; }
+
+        public HashSet<OwnerAssertion> Owners { get; set; }
+
         public bool ShouldSerializeOwners()
         {
-            return (Owners != null && Owners.Count > 0);
+            return Owners != null && Owners.Count > 0;
         }
     }
-    public class PackageAssertion : PackageMinAssertion
+
+    /// <summary>
+    /// This assertion is the full assertion containing all the possible fields and is used during 'Add Package' or 'Edit Package'
+    /// As with all its base classes, the owners field will be ignored, if the Owners field is null or empty
+    /// </summary>
+    public class PackageAssertionSet : PackageMinAssertionSet
     {
         /// <summary>
         /// Adding a parameterless default constructor for supporting Dapper and have internal constructor for writing simple unit tests
         /// Could have added a constructor with a signature matching the sql query, but this is less code
         /// </summary>
-        public PackageAssertion() { }
-        internal PackageAssertion(string packageId, string version, bool exists) : base(packageId, version, exists) { }
+        public PackageAssertionSet() { }
+        internal PackageAssertionSet(string packageId, string version, bool exists) : base(packageId, version, exists) { }
 
-        internal PackageAssertion(string packageId, string version, bool exists, string nupkg, bool listed, DateTime? created, DateTime? published)
+        internal PackageAssertionSet(string packageId, string version, bool exists, string nupkg, bool listed, DateTime? created, DateTime? published)
             : base(packageId, version, exists)
         {
             Nupkg = nupkg;
@@ -86,6 +152,18 @@ namespace MetadataClient
         }
         public string Username { get; set; }
         public bool Exists { get; set; }
+
+        public override bool Equals(object obj)
+        {
+            var other = obj as OwnerAssertion;
+            return Exists == other.Exists && String.Equals(Username, other.Username, StringComparison.OrdinalIgnoreCase);
+        }
+
+        public override int GetHashCode()
+        {
+            // Simplified: returning hash code of username only. Never will it be that the same user is both added and removed in an assertion set
+            return Username.GetHashCode();
+        }
     }
 
     public class PackageOwnerAssertion : OwnerAssertion
@@ -108,6 +186,11 @@ namespace MetadataClient
         public string PackageId { get; set; }
         [JsonIgnore]
         public string Version { get; set; }
+
+        public override int GetHashCode()
+        {
+            return base.GetHashCode();
+        }
     }
 
     public static class AssertionQueries
@@ -166,7 +249,6 @@ WHERE		[Key] NOT IN (SELECT MaxKey = MAX([Key])
 			GROUP BY	Username
 					,	PackageId
 					,	[Version])
-
 COMMIT TRAN
 
 SELECT		LogPackages.*
@@ -269,6 +351,7 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
                 Thread.Sleep(3000);
             }
         }
+
         public static CloudBlobContainer Container
         {
             private get;
@@ -301,7 +384,7 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
                     Console.WriteLine("Completed multiple queries.");
 
                     Console.WriteLine("Extracting packageassertions and owner assertions...");
-                    var packageAssertions = results.Read<PackageAssertion>();
+                    var packageAssertions = results.Read<PackageAssertionSet>();
                     var packageOwnerAssertions = results.Read<PackageOwnerAssertion>();
 
                     // Extract the assertions as JArray
@@ -359,9 +442,11 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
         /// Gets the assertions as JArray from the packageAssertions and packageOwnerAssertions queried from the database
         /// This can be tested separately to verify that the right jArray of assertions are created using mocked assertions
         /// </summary>
-        public static JArray GetJArrayAssertions(IEnumerable<PackageAssertion> packageAssertions, IEnumerable<PackageOwnerAssertion> packageOwnerAssertions)
+        public static JArray GetJArrayAssertions(IEnumerable<PackageAssertionSet> packageAssertions, IEnumerable<PackageOwnerAssertion> packageOwnerAssertions)
         {
-            var packagesAndOwners = new Dictionary<Tuple<string, string>, PackageMinAssertion>();
+            // For every package assertion entry, create an entry in a simple dictionary of (<packageId, packageVersion>, IPackageAssertion)
+            var packagesAndOwners = new Dictionary<Tuple<string, string>, IAssertionSet>();
+            var ownersOnlyAssertions = new Dictionary<string, IAssertionSet>();
             foreach (var packageAssertion in packageAssertions)
             {
                 var key = new Tuple<string, string>(packageAssertion.PackageId, packageAssertion.Version);
@@ -373,30 +458,39 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
                 {
                     // If exists is false, it means the package should be deleted
                     // Ignore all the other fields/columns
-                    packagesAndOwners.Add(key, new PackageMinAssertion(packageAssertion.PackageId, packageAssertion.Version, false));
+                    packagesAndOwners.Add(key, new PackageMinAssertionSet(packageAssertion.PackageId, packageAssertion.Version, false));
                 }
             }
 
+            // Now, for every packageMinOwnerAssertion created, connect the corresponding package owner assertions
+            // If a packageMinOwnerAssertion is not present corresponding to the owner assertion(s),
+            // they are owner only assertions. Add them to ownerAssertions list
             foreach (var packageOwnerAssertion in packageOwnerAssertions)
             {
                 var key = new Tuple<string, string>(packageOwnerAssertion.PackageId, packageOwnerAssertion.Version);
-                PackageMinAssertion packageAssertion = null;
-                if (!packagesAndOwners.TryGetValue(key, out packageAssertion))
+                IAssertionSet assertionSet = null;
+                if (!packagesAndOwners.TryGetValue(key, out assertionSet))
                 {
-                    packageAssertion = packagesAndOwners[key] = new PackageMinAssertion();
-                    packageAssertion.PackageId = packageOwnerAssertion.PackageId;
-                    packageAssertion.Version = packageOwnerAssertion.Version;
-                    packageAssertion.Exists = true;
+                    var ownerKey = key.Item1;
+                    if (!ownersOnlyAssertions.TryGetValue(ownerKey, out assertionSet))
+                    {
+                        assertionSet = ownersOnlyAssertions[ownerKey] = new PackageOwnerAssertionSet(packageOwnerAssertion.PackageId);
+                    }
                 }
-                if (packageAssertion.Owners == null)
+                if (assertionSet.Owners == null)
                 {
-                    packageAssertion.Owners = new List<OwnerAssertion>();
+                    assertionSet.Owners = new HashSet<OwnerAssertion>();
                 }
 
-                packageAssertion.Owners.Add(packageOwnerAssertion);
+                if (!assertionSet.Owners.Add(packageOwnerAssertion))
+                {
+                    Console.WriteLine("PackageOwnerAssertion already exists");
+                }
             }
 
-            var json = JsonConvert.SerializeObject(packagesAndOwners.Values, Formatting.Indented, DefaultJsonSerializerSettings);
+            var assertionSets = packagesAndOwners.Values.Concat(ownersOnlyAssertions.Values);
+
+            var json = JsonConvert.SerializeObject(assertionSets, Formatting.Indented, DefaultJsonSerializerSettings);
             return JArray.Parse(json);
         }
 
@@ -530,7 +624,7 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
             Console.WriteLine("index.json NEW: \n" + indexJSON.ToString());
         }
 
-        private static async Task MarkAssertionsAsProcessed(SqlConnection connection, IEnumerable<PackageAssertion> packageAssertions,
+        private static async Task MarkAssertionsAsProcessed(SqlConnection connection, IEnumerable<PackageAssertionSet> packageAssertions,
             IEnumerable<PackageOwnerAssertion> packageOwnerAssertions)
         {
             var allPackageAssertionKeys = (from packageAssertion in packageAssertions

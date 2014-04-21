@@ -10,10 +10,10 @@ namespace MetadataClient
         public void AddPackageAssertions()
         {
             // Arrange
-            var packageAssertions = new List<PackageAssertion>();
+            var packageAssertions = new List<PackageAssertionSet>();
             var packageOwnerAssertions = new List<PackageOwnerAssertion>();
 
-            var p1 = new PackageAssertion("A", "1.0.0", true, null, true, DateTime.MinValue, DateTime.MinValue);
+            var p1 = new PackageAssertionSet("A", "1.0.0", true, null, true, DateTime.MinValue, DateTime.MinValue);
             packageAssertions.Add(p1);
 
             var o1 = new PackageOwnerAssertion("A", "1.0.0", "user1", true);
@@ -48,10 +48,10 @@ namespace MetadataClient
         public void EditPackageAssertions()
         {
             // Arrange
-            var packageAssertions = new List<PackageAssertion>();
+            var packageAssertions = new List<PackageAssertionSet>();
             var packageOwnerAssertions = new List<PackageOwnerAssertion>();
 
-            var p1 = new PackageAssertion("A", "1.0.0", true, null, true, DateTime.MinValue, DateTime.MinValue);
+            var p1 = new PackageAssertionSet("A", "1.0.0", true, null, true, DateTime.MinValue, DateTime.MinValue);
             packageAssertions.Add(p1);
 
             var expectedAssertionsArray = JArray.Parse(@"[
@@ -77,9 +77,42 @@ namespace MetadataClient
         public void DeletePackageAssertions()
         {
             // Arrange
-            var packageAssertions = new List<PackageAssertion>();
+            var packageAssertions = new List<PackageAssertionSet>();
             var packageOwnerAssertions = new List<PackageOwnerAssertion>();
-            var p1 = new PackageAssertion("A", "1.0.0", false);
+            var p1 = new PackageAssertionSet("A", "1.0.0", false);
+            packageAssertions.Add(p1);
+
+            var o1 = new PackageOwnerAssertion("A", "1.0.0", "user1", true);
+            packageOwnerAssertions.Add(o1);
+
+            var expectedAssertionsArray = JArray.Parse(@"[
+  {
+    'packageId': 'A',
+    'version': '1.0.0',
+    'exists': false,
+    'owners': [
+      {
+        'username': 'user1',
+        'exists': true
+      }
+    ]
+  }
+]");
+
+            // Act
+            var actualAssertionsArray = MetadataJob.GetJArrayAssertions(packageAssertions, packageOwnerAssertions);
+
+            // Arrange
+            Assert.Equal(expectedAssertionsArray, actualAssertionsArray);
+        }
+
+        [Fact]
+        public void DeletePackageWithOwnerAssertions()
+        {
+            // Arrange
+            var packageAssertions = new List<PackageAssertionSet>();
+            var packageOwnerAssertions = new List<PackageOwnerAssertion>();
+            var p1 = new PackageAssertionSet("A", "1.0.0", false);
             packageAssertions.Add(p1);
 
             var expectedAssertionsArray = JArray.Parse(@"[
@@ -92,6 +125,61 @@ namespace MetadataClient
 
             // Act
             var actualAssertionsArray = MetadataJob.GetJArrayAssertions(packageAssertions, packageOwnerAssertions);
+
+            // Arrange
+            Assert.Equal(expectedAssertionsArray, actualAssertionsArray);
+        }
+
+        [Fact]
+        public void AddOwnerAssertions()
+        {
+            // Arrange
+            var packageAssertions = new List<PackageAssertionSet>();
+            var packageOwnerAssertions = new List<PackageOwnerAssertion>();
+            var o1 = new PackageOwnerAssertion("A", "1.0.0", "user1", true);
+            packageOwnerAssertions.Add(o1);
+            var expectedAssertionsArray = JArray.Parse(@"[
+  {
+    'packageId': 'A',
+    'exists': true,
+    'owners': [
+      {
+        'username': 'user1',
+        'exists': true
+      },
+    ]
+  }
+]");
+            // Act
+            var actualAssertionsArray = MetadataJob.GetJArrayAssertions(packageAssertions, packageOwnerAssertions);
+
+            // Arrange
+            Assert.Equal(expectedAssertionsArray, actualAssertionsArray);
+        }
+
+        [Fact]
+        public void RemoveOwnerAssertions()
+        {
+            // Arrange
+            var packageAssertions = new List<PackageAssertionSet>();
+            var packageOwnerAssertions = new List<PackageOwnerAssertion>();
+            var o1 = new PackageOwnerAssertion("A", "1.0.0", "user1", false);
+            packageOwnerAssertions.Add(o1);
+            var expectedAssertionsArray = JArray.Parse(@"[
+  {
+    'packageId': 'A',
+    'owners': [
+      {
+        'username': 'user1',
+        'exists': false
+      },
+    ]
+  }
+]");
+            // Act
+            var actualAssertionsArray = MetadataJob.GetJArrayAssertions(packageAssertions, packageOwnerAssertions);
+
+            // Arrange
             Assert.Equal(expectedAssertionsArray, actualAssertionsArray);
         }
 
@@ -99,7 +187,7 @@ namespace MetadataClient
         public void AddRemoveOwnerAssertions()
         {
             // Arrange
-            var packageAssertions = new List<PackageAssertion>();
+            var packageAssertions = new List<PackageAssertionSet>();
             var packageOwnerAssertions = new List<PackageOwnerAssertion>();
             var o1 = new PackageOwnerAssertion("A", "1.0.0", "user1", true);
             var o2 = new PackageOwnerAssertion("A", "1.0.0", "user2", false);
@@ -108,7 +196,6 @@ namespace MetadataClient
             var expectedAssertionsArray = JArray.Parse(@"[
   {
     'packageId': 'A',
-    'version': '1.0.0',
     'exists': true,
     'owners': [
       {
@@ -124,6 +211,8 @@ namespace MetadataClient
 ]");
             // Act
             var actualAssertionsArray = MetadataJob.GetJArrayAssertions(packageAssertions, packageOwnerAssertions);
+
+            // Arrange
             Assert.Equal(expectedAssertionsArray, actualAssertionsArray);
         }
 
@@ -131,35 +220,16 @@ namespace MetadataClient
         public void RenameOwnerAssertions()
         {
             // Arrange
-            var packageAssertions = new List<PackageAssertion>();
+            var packageAssertions = new List<PackageAssertionSet>();
             var packageOwnerAssertions = new List<PackageOwnerAssertion>();
             var o1 = new PackageOwnerAssertion("A", "1.0.0", "user1", false);
             var o2 = new PackageOwnerAssertion("A", "1.0.0", "newuser1", true);
-            var o3 = new PackageOwnerAssertion("A", "2.0.0", "user1", false);
-            var o4 = new PackageOwnerAssertion("A", "2.0.0", "newuser1", true);
             packageOwnerAssertions.Add(o1);
             packageOwnerAssertions.Add(o2);
-            packageOwnerAssertions.Add(o3);
-            packageOwnerAssertions.Add(o4);
 
             var expectedAssertionsArray = JArray.Parse(@"[
   {
     'packageId': 'A',
-    'version': '1.0.0',
-    'exists': true,
-    'owners': [
-      {
-        'username': 'user1',
-        'exists': false
-      },
-      {
-        'username': 'newuser1',
-        'exists': true
-      }
-    ]
-  },{
-    'packageId': 'A',
-    'version': '2.0.0',
     'exists': true,
     'owners': [
       {
@@ -175,6 +245,38 @@ namespace MetadataClient
 ]");
             // Act
             var actualAssertionsArray = MetadataJob.GetJArrayAssertions(packageAssertions, packageOwnerAssertions);
+
+            // Arrange
+            Assert.Equal(expectedAssertionsArray, actualAssertionsArray);
+        }
+
+        [Fact]
+        public void AddOwnerAssertionsForSamePackageOfDifferentVersions()
+        {
+            // Arrange
+            var packageAssertions = new List<PackageAssertionSet>();
+            var packageOwnerAssertions = new List<PackageOwnerAssertion>();
+            var o1 = new PackageOwnerAssertion("A", "1.0.0", "user1", true);
+            var o2 = new PackageOwnerAssertion("A", "2.0.0", "user1", true);
+            packageOwnerAssertions.Add(o1);
+            packageOwnerAssertions.Add(o2);
+
+            var expectedAssertionsArray = JArray.Parse(@"[
+  {
+    'packageId': 'A',
+    'exists': true,
+    'owners': [
+      {
+        'username': 'user1',
+        'exists': true
+      }
+    ]
+  }
+]");
+            // Act
+            var actualAssertionsArray = MetadataJob.GetJArrayAssertions(packageAssertions, packageOwnerAssertions);
+
+            // Arrange
             Assert.Equal(expectedAssertionsArray, actualAssertionsArray);
         }
     }
