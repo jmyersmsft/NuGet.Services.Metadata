@@ -152,6 +152,21 @@ OUTPUT		inserted.[Key]
 INTO		@PackageOwnerAssertions
 WHERE		ProcessedDateTime IS NULL
 
+UPDATE		LogPackages
+SET			ProcessedDateTime = @ProcessingDateTime
+WHERE		[Key] NOT IN (SELECT MaxKey = MAX([Key])
+			FROM		@PackageAssertions
+			GROUP BY	PackageId
+					,	[Version])
+
+UPDATE		LogPackageOwners
+SET			ProcessedDateTime = @ProcessingDateTime
+WHERE		[Key] NOT IN (SELECT MaxKey = MAX([Key])
+			FROM		@PackageOwnerAssertions
+			GROUP BY	Username
+					,	PackageId
+					,	[Version])
+
 COMMIT TRAN
 
 SELECT		LogPackages.*
