@@ -95,6 +95,11 @@ namespace MetadataClient
                 args.ContainerName = "mdtriggers";
             }
 
+            if(String.IsNullOrEmpty(args.NupkgUrlFormat))
+            {
+                args.NupkgUrlFormat = @"http://www.nuget.org/api/v2/package/{0}/{1}";
+            }
+
             CloudStorageAccount account = CloudStorageAccount.Parse(args.StorageConnectionString);
             CloudBlobClient client = account.CreateCloudBlobClient();
             CloudBlobContainer container = client.GetContainerReference(args.ContainerName);
@@ -107,7 +112,7 @@ namespace MetadataClient
             Console.WriteLine("Trimming network protocol if any");
             sql.TrimNetworkProtocol();
 
-            MetadataJob.Start(account, container, sql, args.PushToCloud, args.UpdateTables).Wait();
+            MetadataJob.Start(account, container, sql, args.NupkgUrlFormat, args.PushToCloud, args.UpdateTables).Wait();
         }
 
         static string Nuget = "http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd";

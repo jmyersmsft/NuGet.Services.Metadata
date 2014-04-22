@@ -24,7 +24,7 @@ namespace MetadataClient
     'packageId': 'A',
     'version': '1.0.0',
     'exists': true,
-    'nupkg': null,
+    'nupkg': 'http://www.nuget.org/api/v2/package/A/1.0.0',
     'listed': true,
     'created': '0001-01-01T00:00:00',
     'published': '0001-01-01T00:00:00',
@@ -38,7 +38,7 @@ namespace MetadataClient
 ]");
 
             // Act
-            var actualAssertionsArray = MetadataJob.GetJArrayAssertions(packageAssertions, packageOwnerAssertions);
+            var actualAssertionsArray = MetadataJob.GetJArrayAssertions(packageAssertions, packageOwnerAssertions, @"http://www.nuget.org/api/v2/package/{0}/{1}");
 
             // Arrange
             Assert.Equal(expectedAssertionsArray, actualAssertionsArray);
@@ -59,7 +59,7 @@ namespace MetadataClient
     'packageId': 'A',
     'version': '1.0.0',
     'exists': true,
-    'nupkg': null,
+    'nupkg': 'http://www.nuget.org/api/v2/package/A/1.0.0',
     'listed': true,
     'created': '0001-01-01T00:00:00',
     'published': '0001-01-01T00:00:00',
@@ -67,7 +67,7 @@ namespace MetadataClient
 ]");
 
             // Act
-            var actualAssertionsArray = MetadataJob.GetJArrayAssertions(packageAssertions, packageOwnerAssertions);
+            var actualAssertionsArray = MetadataJob.GetJArrayAssertions(packageAssertions, packageOwnerAssertions, @"http://www.nuget.org/api/v2/package/{0}/{1}");
 
             // Arrange
             Assert.Equal(expectedAssertionsArray, actualAssertionsArray);
@@ -278,6 +278,13 @@ namespace MetadataClient
 
             // Arrange
             Assert.Equal(expectedAssertionsArray, actualAssertionsArray);
+        }
+
+        [Fact]
+        public void GetNupkgArgumentNull()
+        {
+            // Arrange, Act & Assert
+            Assert.Throws<ArgumentNullException>(() => { MetadataJob.GetNupkg(nupkgUrlFormat: null, packageId: "A", version: "1.0.0"); });
         }
     }
 }

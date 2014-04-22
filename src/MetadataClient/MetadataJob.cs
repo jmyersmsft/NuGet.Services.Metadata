@@ -16,6 +16,7 @@ using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Linq;
 using System.Collections;
 using Newtonsoft.Json.Serialization;
+using System.Globalization;
 
 namespace MetadataClient
 {
@@ -319,7 +320,7 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
   '" + EventNewest + @"': null
 }");
 
-        public static async Task Start(CloudStorageAccount blobAccount, CloudBlobContainer container, SqlConnectionStringBuilder sql, bool pushToCloud, bool updateTables)
+        public static async Task Start(CloudStorageAccount blobAccount, CloudBlobContainer container, SqlConnectionStringBuilder sql, string nupkgUrlFormat, bool pushToCloud, bool updateTables)
         {
             Console.WriteLine("Started polling...");
             Console.WriteLine("Looking for changes in {0}/{1} ", sql.DataSource, sql.InitialCatalog);
@@ -354,8 +355,14 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
 
         public static CloudBlobContainer Container
         {
-            private get;
-            set;
+            get;
+            private set;
+        }
+
+        public static string NupkgUrlFormat
+        {
+            get;
+            private set;
         }
 
         public static bool PushToCloud
@@ -438,11 +445,16 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
             return json;
         }
 
+        public static JArray GetJArrayAssertions(IEnumerable<PackageAssertionSet> packageAssertions, IEnumerable<PackageOwnerAssertion> packageOwnerAssertions)
+        {
+            return GetJArrayAssertions(packageAssertions, packageOwnerAssertions, NupkgUrlFormat);
+        }
+
         /// <summary>
         /// Gets the assertions as JArray from the packageAssertions and packageOwnerAssertions queried from the database
         /// This can be tested separately to verify that the right jArray of assertions are created using mocked assertions
         /// </summary>
-        public static JArray GetJArrayAssertions(IEnumerable<PackageAssertionSet> packageAssertions, IEnumerable<PackageOwnerAssertion> packageOwnerAssertions)
+        public static JArray GetJArrayAssertions(IEnumerable<PackageAssertionSet> packageAssertions, IEnumerable<PackageOwnerAssertion> packageOwnerAssertions, string nupkgUrlFormat)
         {
             // For every package assertion entry, create an entry in a simple dictionary of (<packageId, packageVersion>, IPackageAssertion)
             var packagesAndOwners = new Dictionary<Tuple<string, string>, IAssertionSet>();
@@ -452,6 +464,7 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
                 var key = new Tuple<string, string>(packageAssertion.PackageId, packageAssertion.Version);
                 if (packageAssertion.Exists)
                 {
+                    packageAssertion.Nupkg = GetNupkg(nupkgUrlFormat, packageAssertion.PackageId, packageAssertion.Version);
                     packagesAndOwners.Add(key, packageAssertion);
                 }
                 else
@@ -541,6 +554,15 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
         public static string GetBlobName(DateTime timeStamp)
         {
             return String.Format(EventFileNameFormat, EventsPrefix, timeStamp.ToString(DateTimeFormat));
+        }
+
+        public static string GetNupkg(string nupkgUrlFormat, string packageId, string version)
+        {
+            if (nupkgUrlFormat == null)
+            {
+                throw new ArgumentNullException("nupkgUrlFormat");
+            }
+            return String.Format(CultureInfo.InvariantCulture, nupkgUrlFormat, packageId, version);
         }
 
         /// <summary>

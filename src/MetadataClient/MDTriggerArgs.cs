@@ -14,6 +14,10 @@ namespace MetadataClient
         [ArgDescription("Container name")]
         public string ContainerName { get; set; }
 
+        [ArgShortcut("n")]
+        [ArgDescription("Nupkg Url Format")]
+        public string NupkgUrlFormat { get; set; }
+
         [ArgDescription("PushToCloud")]
         public bool PushToCloud { get; set; }
 
