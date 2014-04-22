@@ -18,6 +18,10 @@ namespace MetadataClient
         [ArgDescription("Nupkg Url Format")]
         public string NupkgUrlFormat { get; set; }
 
+        [ArgShortcut("m")]
+        [ArgDescription("Max records to pull")]
+        public int MaxRecords { get; set; }
+
         [ArgDescription("PushToCloud")]
         public bool PushToCloud { get; set; }
 

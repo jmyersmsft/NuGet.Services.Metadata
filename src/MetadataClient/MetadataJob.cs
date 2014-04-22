@@ -17,6 +17,7 @@ using Newtonsoft.Json.Linq;
 using System.Collections;
 using Newtonsoft.Json.Serialization;
 using System.Globalization;
+using System.Diagnostics;
 
 namespace MetadataClient
 {
@@ -187,11 +188,6 @@ namespace MetadataClient
         public string PackageId { get; set; }
         [JsonIgnore]
         public string Version { get; set; }
-
-        public override int GetHashCode()
-        {
-            return base.GetHashCode();
-        }
     }
 
     public static class AssertionQueries
@@ -215,7 +211,7 @@ DECLARE		@ProcessingDateTime datetime = GETUTCDATE()
 
 BEGIN TRAN
 
-UPDATE		LogPackages
+UPDATE		TOP(@MaxRecords) LogPackages
 SET			ProcessAttempts = ProcessAttempts + 1
 		,	FirstProcessingDateTime = ISNULL(FirstProcessingDateTime, @ProcessingDateTime)
 		,	LastProcessingDateTime = @ProcessingDateTime
@@ -225,7 +221,7 @@ OUTPUT		inserted.[Key]
 INTO		@PackageAssertions
 WHERE		ProcessedDateTime IS NULL
 
-UPDATE		LogPackageOwners
+UPDATE		TOP(@MaxRecords) LogPackageOwners
 SET			ProcessAttempts = ProcessAttempts + 1
 		,	FirstProcessingDateTime = ISNULL(FirstProcessingDateTime, @ProcessingDateTime)
 		,	LastProcessingDateTime = @ProcessingDateTime
@@ -300,7 +296,7 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
         // File constants
         private const string IndexJson = "index.json";
 
-        // Property Name constants
+        // Event constants
         private const string EventTimeStamp = "timestamp";
         private const string EventOlder = "older";
         private const string EventNewer = "newer";
@@ -309,11 +305,8 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
         private const string EventNewest = "newest";
         private const string EventNull = null;
         private const string EventAssertions = "assertions";
-        private const string PackageId = "PackageId";
-        private const string PackageVersion = "Version";
-        private const string PackageNupkg = "nupkg";
-        private const string PackageOwners = "owners";
 
+        private const int MaxRecordsCap = 1000;
         private static readonly JsonSerializerSettings DefaultJsonSerializerSettings = new JsonSerializerSettings() { ContractResolver = new CamelCasePropertyNamesContractResolver() };
         public static readonly JObject EmptyIndexJSON = JObject.Parse(@"{
   '" + EventLastUpdated + @"': '',
@@ -321,7 +314,7 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
   '" + EventNewest + @"': null
 }");
 
-        public static async Task Start(CloudStorageAccount blobAccount, CloudBlobContainer container, SqlConnectionStringBuilder sql, string nupkgUrlFormat, bool pushToCloud, bool updateTables)
+        public static async Task Start(CloudStorageAccount blobAccount, CloudBlobContainer container, SqlConnectionStringBuilder sql, string nupkgUrlFormat, int maxRecords, bool pushToCloud, bool updateTables)
         {
             Console.WriteLine("Started polling...");
             Console.WriteLine("Looking for changes in {0}/{1} ", sql.DataSource, sql.InitialCatalog);
@@ -332,6 +325,8 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
             }
 
             Container = container;
+            NupkgUrlFormat = nupkgUrlFormat;
+            MaxRecords = Math.Min(maxRecords, MaxRecordsCap);
             PushToCloud = pushToCloud;
             UpdateTables = updateTables;
 
@@ -366,6 +361,12 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
             private set;
         }
 
+        public static int MaxRecords
+        {
+            get;
+            private set;
+        }
+
         public static bool PushToCloud
         {
             get;
@@ -388,7 +389,7 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
                 {
                     Console.WriteLine("Connected to database in {0}/{1} obtained: {2}", connection.DataSource, connection.Database, connection.ClientConnectionId);
                     Console.WriteLine("Querying multiple queries...");
-                    var results = connection.QueryMultiple(AssertionQueries.GetAssertionsQuery);
+                    var results = connection.QueryMultiple(AssertionQueries.GetAssertionsQuery, new { MaxRecords = MaxRecords });
                     Console.WriteLine("Completed multiple queries.");
 
                     Console.WriteLine("Extracting packageassertions and owner assertions...");
@@ -396,6 +397,8 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
                     var packageOwnerAssertions = results.Read<PackageOwnerAssertion>();
 
                     // Extract the assertions as JArray
+                    Debug.Assert(packageAssertions.Count() <= MaxRecords);
+                    Debug.Assert(packageOwnerAssertions.Count() <= MaxRecords);
                     var jArrayAssertions = GetJArrayAssertions(packageAssertions, packageOwnerAssertions);
 
                     if (jArrayAssertions.Count > 0)
@@ -656,32 +659,14 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
         private static async Task MarkAssertionsAsProcessed(SqlConnection connection, IEnumerable<PackageAssertionSet> packageAssertions,
             IEnumerable<PackageOwnerAssertion> packageOwnerAssertions)
         {
-            var allPackageAssertionKeys = (from packageAssertion in packageAssertions
+            var packageAssertionKeys = (from packageAssertion in packageAssertions
                                        select packageAssertion.Key).ToList();
 
-            var allPackageOwnerAssertionKeys = (from packageOwnerAssertion in packageOwnerAssertions
+            var packageOwnerAssertionKeys = (from packageOwnerAssertion in packageOwnerAssertions
                                             select packageOwnerAssertion.Key).ToList();
 
-            // NOTE THAT the number of keys in the 'IN' clause of a SQL query is restricted to 2100
-            // Let us keep it simple and restrict the number to 1000. Since there are 2 IN queries,
-            // 1 for package assertions and 1 for package owner assertions, set the limit as 500
-            var maxINClauseKeysCount = 500;
-            var index = 0;
-
-            var packageAssertionsCount = allPackageAssertionKeys.Count;
-            var ownerAssertionsCount = allPackageOwnerAssertionKeys.Count;
-            while (index < packageAssertionsCount || index < ownerAssertionsCount)
-            {
-                var packageAssertionKeys = index < packageAssertionsCount ?
-                allPackageAssertionKeys.GetRange(index, Math.Min(maxINClauseKeysCount, packageAssertionsCount - index)) : new List<int>();
-                var packageOwnerAssertionKeys = index < ownerAssertionsCount ?
-                allPackageOwnerAssertionKeys.GetRange(index, Math.Min(maxINClauseKeysCount, ownerAssertionsCount - index)) : new List<int>();
-
-                await connection.QueryAsync<int>(AssertionQueries.MarkAssertionsQuery,
-                    new { packageAssertionKeys = packageAssertionKeys, packageOwnerAssertionKeys = packageOwnerAssertionKeys });
-
-                index += maxINClauseKeysCount;
-            }
+            await connection.QueryAsync<int>(AssertionQueries.MarkAssertionsQuery,
+                new { packageAssertionKeys = packageAssertionKeys, packageOwnerAssertionKeys = packageOwnerAssertionKeys });
         }
     }
 }
