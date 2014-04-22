@@ -88,6 +88,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RenameOwnerArgs.cs" />
     <Compile Include="SqlConnectionStringBuilderExtensions.cs" />
+    <Compile Include="SQLQueries.cs" />
     <Compile Include="UploadPackageArgs.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -95,6 +96,10 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="Scripts\Events_CreateLogTables.sql" />
+    <Content Include="Scripts\Events_GetAssertions.sql" />
+    <Content Include="Scripts\Events_ProcessAssertions.sql" />
+    <Content Include="Scripts\Events_PurgeAssertions.sql" />
     <Content Include="SQLFiles\ResetMDPackageRegOwners.sql" />
     <Content Include="SQLFiles\ResetMDPackageState.sql" />
     <Content Include="SQLFiles\UpdateMDPackageRegOwners.sql" />
@@ -103,6 +108,7 @@
   <ItemGroup>
     <Service Include="{82A7F48D-3B50-4B1E-B82E-3ADA8210C358}" />
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

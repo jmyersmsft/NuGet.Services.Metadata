@@ -134,10 +134,24 @@ namespace MetadataClient
         [JsonIgnore]
         public int Key { get; set; }
 
+        [JsonIgnore]
+        public int ProcessAttempts { get; set; }
+
+        [JsonIgnore]
+        public DateTime? FirstProcessingDateTime { get; set; }
+
+        [JsonIgnore]
+        public DateTime? LastProcessingDateTime { get; set; }
+
+        [JsonIgnore]
+        public DateTime? ProcessedDateTime { get; set; }
+
         public string Nupkg { get; set; }
         public bool Listed { get; set; }
         public DateTime? Created { get; set; }
         public DateTime? Published { get; set; }
+
+        public DateTime? LastEdited { get; set; }
     }
 
     public class OwnerAssertion
@@ -189,102 +203,6 @@ namespace MetadataClient
         [JsonIgnore]
         public string Version { get; set; }
     }
-
-    public static class AssertionQueries
-    {
-        public const string GetAssertionsQuery = @"DECLARE		@PackageAssertions TABLE
-(
-			[Key] int
-		,	PackageId nvarchar(128)
-		,	[Version] nvarchar(64)
-)
-
-DECLARE		@PackageOwnerAssertions TABLE
-(
-			[Key] int
-		,	Username nvarchar(64)
-		,	PackageId nvarchar(128)
-		,	[Version] nvarchar(64)
-)
-
-DECLARE		@ProcessingDateTime datetime = GETUTCDATE()
-
-BEGIN TRAN
-
-UPDATE		TOP(@MaxRecords) LogPackages
-SET			ProcessAttempts = ProcessAttempts + 1
-		,	FirstProcessingDateTime = ISNULL(FirstProcessingDateTime, @ProcessingDateTime)
-		,	LastProcessingDateTime = @ProcessingDateTime
-OUTPUT		inserted.[Key]
-		,	inserted.PackageId
-		,	inserted.[Version]
-INTO		@PackageAssertions
-WHERE		ProcessedDateTime IS NULL
-
-UPDATE		TOP(@MaxRecords) LogPackageOwners
-SET			ProcessAttempts = ProcessAttempts + 1
-		,	FirstProcessingDateTime = ISNULL(FirstProcessingDateTime, @ProcessingDateTime)
-		,	LastProcessingDateTime = @ProcessingDateTime
-OUTPUT		inserted.[Key]
-		,	inserted.Username
-		,	inserted.PackageId
-		,	inserted.Version
-INTO		@PackageOwnerAssertions
-WHERE		ProcessedDateTime IS NULL
-
-UPDATE		LogPackages
-SET			ProcessedDateTime = @ProcessingDateTime
-WHERE		[Key] NOT IN (SELECT MaxKey = MAX([Key])
-			FROM		@PackageAssertions
-			GROUP BY	PackageId
-					,	[Version])
-
-UPDATE		LogPackageOwners
-SET			ProcessedDateTime = @ProcessingDateTime
-WHERE		[Key] NOT IN (SELECT MaxKey = MAX([Key])
-			FROM		@PackageOwnerAssertions
-			GROUP BY	Username
-					,	PackageId
-					,	[Version])
-COMMIT TRAN
-
-SELECT		LogPackages.*
-FROM		(
-			SELECT		MaxKey = MAX([Key])
-					,	PackageId
-					,	[Version]
-			FROM		@PackageAssertions
-			GROUP BY	PackageId
-					,	[Version]
-			) PackageAssertions
-INNER JOIN	LogPackages WITH (NOLOCK)
-		ON	LogPackages.[Key] = PackageAssertions.MaxKey
-
-SELECT		LogPackageOwners.*
-FROM		(
-			SELECT		MaxKey = MAX([Key])
-					,	Username
-					,	PackageId
-					,	[Version]
-			FROM		@PackageOwnerAssertions
-			GROUP BY	Username
-					,	PackageId
-					,	[Version]
-			) PackageOwnerAssertions
-INNER JOIN	LogPackageOwners WITH (NOLOCK)
-		ON	LogPackageOwners.[Key] = PackageOwnerAssertions.MaxKey";
-
-        public const string MarkAssertionsQuery = @"DECLARE		@ProcessedDateTime datetime = GETUTCDATE()
-
-UPDATE		LogPackages
-SET			ProcessedDateTime = @ProcessedDateTime
-WHERE		[Key] IN @packageAssertionKeys
-
-UPDATE		LogPackageOwners
-SET			ProcessedDateTime = @ProcessedDateTime
-WHERE		[Key] IN @packageOwnerAssertionKeys";
-    }
-
     public static class MetadataJob
     {
         // Formatting constants
@@ -389,7 +307,7 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
                 {
                     Console.WriteLine("Connected to database in {0}/{1} obtained: {2}", connection.DataSource, connection.Database, connection.ClientConnectionId);
                     Console.WriteLine("Querying multiple queries...");
-                    var results = connection.QueryMultiple(AssertionQueries.GetAssertionsQuery, new { MaxRecords = MaxRecords });
+                    var results = connection.QueryMultiple(SQLQueries.GetAssertionsQuery, new { MaxRecords = MaxRecords });
                     Console.WriteLine("Completed multiple queries.");
 
                     Console.WriteLine("Extracting packageassertions and owner assertions...");
@@ -665,7 +583,7 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
             var packageOwnerAssertionKeys = (from packageOwnerAssertion in packageOwnerAssertions
                                             select packageOwnerAssertion.Key).ToList();
 
-            await connection.QueryAsync<int>(AssertionQueries.MarkAssertionsQuery,
+            await connection.QueryAsync<int>(SQLQueries.ProcessAssertionsQuery,
                 new { packageAssertionKeys = packageAssertionKeys, packageOwnerAssertionKeys = packageOwnerAssertionKeys });
         }
     }
