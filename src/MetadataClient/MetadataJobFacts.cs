@@ -286,5 +286,96 @@ namespace MetadataClient
             // Arrange, Act & Assert
             Assert.Throws<ArgumentNullException>(() => { MetadataJob.GetNupkg(nupkgUrlFormat: null, packageId: "A", version: "1.0.0"); });
         }
+
+        [Fact]
+        public void TestGetJObjectFirstOne()
+        {
+            var indexJSON = (JObject)MetadataJob.EmptyIndexJSON.DeepClone();
+            var jArrayAssertions = new JArray();
+            var timeStamp = new DateTime(2014, 4, 21, 12, 30, 30, 500);
+            var expectedJObject = JObject.Parse(@"{
+  'timestamp': '2014-04-21T12:30:30.5',
+  'older': null,
+  'newer': null,
+  'assertions': []
+}");
+
+            // Act
+            var actualJObject = MetadataJob.GetJObject(jArrayAssertions, timeStamp, indexJSON);
+
+            // Assert
+            Assert.Equal(expectedJObject, actualJObject);
+        }
+
+        [Fact]
+        public void TestGetJObjectSecondOneOrHigher()
+        {
+            var indexJSON = JObject.Parse(@"{
+  'lastupdated': '2014-04-21T12:30:30.5',
+  'oldest': '2014/04/21/12-30-30-500Z.json',
+  'newest': '2014/04/21/12-30-30-500Z.json'
+}");
+            var jArrayAssertions = new JArray();
+            var timeStamp = new DateTime(2014, 4, 21, 12, 35, 30, 800);
+            var expectedJObject = JObject.Parse(@"{
+  'timestamp': '2014-04-21T12:35:30.8',
+  'older': '../../../2014/04/21/12-30-30-500Z.json',
+  'newer': null,
+  'assertions': []
+}");
+
+            // Act
+            var actualJObject = MetadataJob.GetJObject(jArrayAssertions, timeStamp, indexJSON);
+
+            // Assert
+            Assert.Equal(expectedJObject, actualJObject);
+        }
+
+        [Fact]
+        public void TestIndexJSONFirstTime()
+        {
+            // Arrange
+            var indexJSON = (JObject)MetadataJob.EmptyIndexJSON.DeepClone();
+            var jArrayAssertions = new JArray();
+            var timeStamp = new DateTime(2014, 4, 21, 12, 30, 30, 500);
+            var expectedJObject = JObject.Parse(@"{
+  'lastupdated': '2014-04-21T12:30:30.5',
+  'oldest': '2014/04/21/12-30-30-500Z.json',
+  'newest': '2014/04/21/12-30-30-500Z.json'
+}");
+
+            // Act
+            var jObject = MetadataJob.GetJObject(jArrayAssertions, timeStamp, indexJSON);
+            MetadataJob.DumpJSON(jObject, MetadataJob.GetBlobName(timeStamp), timeStamp, indexJSON, null).Wait();
+
+            // Assert
+            Assert.Equal(expectedJObject, indexJSON);
+        }
+
+        [Fact]
+        public void TestIndexJSONSecondTimeOrLater()
+        {
+            // Arrange
+            var indexJSON = JObject.Parse(@"{
+  'lastupdated': '2014-04-21T12:30:30.5',
+  'oldest': '2014/04/21/12-30-30-500Z.json',
+  'newest': '2014/04/21/12-30-30-500Z.json'
+}");
+
+            var jArrayAssertions = new JArray();
+            var timeStamp = new DateTime(2014, 4, 21, 12, 35, 30, 800);
+            var expectedJObject = JObject.Parse(@"{
+  'lastupdated': '2014-04-21T12:35:30.8',
+  'oldest': '2014/04/21/12-30-30-500Z.json',
+  'newest': '2014/04/21/12-35-30-800Z.json'
+}");
+
+            // Act
+            var jObject = MetadataJob.GetJObject(jArrayAssertions, timeStamp, indexJSON);
+            MetadataJob.DumpJSON(jObject, MetadataJob.GetBlobName(timeStamp), timeStamp, indexJSON, null).Wait();
+
+            // Assert
+            Assert.Equal(expectedJObject, indexJSON);
+        }
     }
 }

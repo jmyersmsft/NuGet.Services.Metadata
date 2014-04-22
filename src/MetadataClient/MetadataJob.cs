@@ -292,7 +292,8 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
     public static class MetadataJob
     {
         // Formatting constants
-        private const string EventsPrefix = "packageassertions/";
+        private readonly static string RelativeEventPathFormat = "../../../{0}";
+        private readonly static string EventsPrefix = String.Empty;
         private const string DateTimeFormat = "yyyy/MM/dd/HH-mm-ss-fffZ";
         private const string EventFileNameFormat = "{0}{1}.json";
 
@@ -314,7 +315,7 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
         private const string PackageOwners = "owners";
 
         private static readonly JsonSerializerSettings DefaultJsonSerializerSettings = new JsonSerializerSettings() { ContractResolver = new CamelCasePropertyNamesContractResolver() };
-        private static readonly JObject EmptyIndexJSON = JObject.Parse(@"{
+        public static readonly JObject EmptyIndexJSON = JObject.Parse(@"{
   '" + EventLastUpdated + @"': '',
   '" + EventOldest + @"': null,
   '" + EventNewest + @"': null
@@ -544,7 +545,7 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
                     throw new ArgumentException("indexJSON does not have a token 'newest'");
                 }
                 Console.WriteLine("Event newest in empty index json is :" + eventOlder.ToString());
-                json.Add(EventOlder, eventOlder.Type == JTokenType.Null ? EventNull : eventOlder.ToString());
+                json.Add(EventOlder, eventOlder.Type == JTokenType.Null ? EventNull : GetRelativePathToEvent(eventOlder.ToString()));
             }
             json.Add(EventNewer, EventNull);
             json.Add(EventAssertions, jArrayAssertions);
@@ -565,10 +566,15 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
             return String.Format(CultureInfo.InvariantCulture, nupkgUrlFormat, packageId, version);
         }
 
+        public static string GetRelativePathToEvent(string eventName)
+        {
+            return String.Format(RelativeEventPathFormat, eventName);
+        }
+
         /// <summary>
         /// This function simply dumps the json onto console and to the blob if applicable
         /// </summary>
-        private static async Task DumpJSON(JObject json, string blobName, DateTime timeStamp, JObject indexJSON, CloudBlockBlob indexJSONBlob)
+        public static async Task DumpJSON(JObject json, string blobName, DateTime timeStamp, JObject indexJSON, CloudBlockBlob indexJSONBlob)
         {
             if(json == null)
             {
@@ -583,6 +589,27 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
             Console.WriteLine("BlobName: {0}\n", blobName);
 
             Console.WriteLine("index.json PREVIOUS: \n" + indexJSON.ToString());
+
+            string oldestBlobName = null;
+            string previousLatestBlobName = null;
+            oldestBlobName = indexJSON.SelectToken(EventOldest).ToString();
+            previousLatestBlobName = indexJSON.SelectToken(EventNewest).ToString();
+
+            // Update the previous latest block
+            if(String.IsNullOrEmpty(previousLatestBlobName))
+            {
+                if(!String.IsNullOrEmpty(oldestBlobName))
+                {
+                    Console.WriteLine("WARNING: OldestBlobName is not empty when newestBlobName is. Something went wrong somewhere!!!");
+                }
+                // Both the oldest and newest event blob names are empty
+                // Set the oldest now
+                indexJSON[EventOldest] = blobName;
+            }
+
+            // TODO: Should we store the URL instead?
+            indexJSON[EventNewest] = blobName;
+            indexJSON[EventLastUpdated] = timeStamp;
             if (PushToCloud)
             {
                 Console.WriteLine("Dumping to {0}", blobName);
@@ -594,23 +621,7 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
                     await latestBlob.UploadFromStreamAsync(stream);
                 }
 
-                string oldestBlobName = null;
-                string previousLatestBlobName = null;
-                oldestBlobName = indexJSON.SelectToken(EventOldest).ToString();
-                previousLatestBlobName = indexJSON.SelectToken(EventNewest).ToString();
-
-                // Update the previous latest block
-                if(String.IsNullOrEmpty(previousLatestBlobName))
-                {
-                    if(!String.IsNullOrEmpty(oldestBlobName))
-                    {
-                        Console.WriteLine("WARNING: OldestBlobName is not empty when newestBlobName is. Something went wrong somewhere!!!");
-                    }
-                    // Both the oldest and newest event blob names are empty
-                    // Set the oldest now
-                    indexJSON[EventOldest] = blobName;
-                }
-                else
+                if (!String.IsNullOrEmpty(previousLatestBlobName))
                 {
                     CloudBlockBlob previousLatestBlob = Container.GetBlockBlobReference(previousLatestBlobName);
                     JObject previousLatestJSON = await GetJSON(previousLatestBlob);
@@ -619,7 +630,7 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
                         throw new InvalidOperationException("Previous latest blob does not exist");
                     }
 
-                    previousLatestJSON[EventNewer] = blobName;
+                    previousLatestJSON[EventNewer] = GetRelativePathToEvent(blobName);
                     // Finally, upload the index block
                     using (var stream = new MemoryStream(Encoding.Default.GetBytes(previousLatestJSON.ToString()), false))
                     {
@@ -627,10 +638,6 @@ WHERE		[Key] IN @packageOwnerAssertionKeys";
                     }
                     Console.WriteLine("Previous Latest Blob: \n" + previousLatestJSON.ToString());
                 }
-
-                // TODO: Should we store the URL instead?
-                indexJSON[EventNewest] = blobName;
-                indexJSON[EventLastUpdated] = timeStamp;
 
                 // Finally, upload the index block
                 using (var stream = new MemoryStream(Encoding.Default.GetBytes(indexJSON.ToString()), false))
