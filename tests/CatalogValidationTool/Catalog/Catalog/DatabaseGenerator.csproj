@@ -64,8 +64,9 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\packages\Newtonsoft.Json.6.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
-    <Reference Include="NuGet.Services.Metadata.Catalog">
-      <HintPath>..\..\..\..\Users\bhuvak\Documents\GitHub\NuGet.Services.Metadata\src\Catalog\bin\Debug\NuGet.Services.Metadata.Catalog.dll</HintPath>
+    <Reference Include="NuGet.Services.Metadata.Catalog, Version=3.9999.9999.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\src\Catalog\bin\Debug\NuGet.Services.Metadata.Catalog.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Configuration" />

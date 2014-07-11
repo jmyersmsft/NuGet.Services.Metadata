@@ -48,7 +48,7 @@ namespace CatalogTestTool
             int count = 0;
             foreach (JToken indexItem in indexObj["item"])
             {
-                DateTime indexItemTimeStamp = indexItem["timeStamp"]["@value"].ToObject<DateTime>();
+                DateTime indexItemTimeStamp = indexItem["catalogTimestamp"].ToObject<DateTime>();
 
                 if (indexItemTimeStamp > lastReadTime)
                 {
@@ -57,7 +57,7 @@ namespace CatalogTestTool
 
                     foreach (JToken pageItem in pageObj["item"])
                     {
-                        DateTime pageItemTimeStamp = pageItem["timeStamp"]["@value"].ToObject<DateTime>();
+                        DateTime pageItemTimeStamp = pageItem["catalogTimestamp"].ToObject<DateTime>();
 
                         if (pageItemTimeStamp > lastReadTime)
                         {
@@ -233,7 +233,7 @@ namespace CatalogTestTool
                 //string baseAddress = "http://linked.blob.core.windows.net/demo/";
                 string baseAddress = "http://localhost:8000/test/";
                 //CreateTablesMiniDB.RunScripts();//Creates the miniDB
-                //TestCatalogWriter.WriteCatalog();//Writes a catalog
+                TestCatalogWriter.WriteCatalog();//Writes a catalog
                 ReadCatalog(baseAddress).Wait();//Reads the catalog and populates miniDB
 
                 string connectionStringSource = ConfigurationManager.AppSettings["SourceDBConnectionString"];
