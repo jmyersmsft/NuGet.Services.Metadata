@@ -14,7 +14,7 @@ namespace CatalogTestTool
             try
             {
                 //connect to the CatalogTest DB which is the miniDB created from the catalog
-                string sqlConnectionString = ConfigurationManager.AppSettings["miniDBConnectionString"];
+                string sqlConnectionString = ConfigurationManager.AppSettings["MiniDBConnectionString"];
 
                 SqlConnection connection = new SqlConnection(sqlConnectionString);
                 connection.Open();
@@ -22,6 +22,7 @@ namespace CatalogTestTool
                 //Run Scripts to create the tables in the miniDB
                 FileInfo PackageAuthors = new FileInfo("PackageAuthors.sql");
                 FileInfo Packages = new FileInfo("Packages.sql");
+                
                 FileInfo PackageRegistrations = new FileInfo("PackageRegistrations.sql");
                 FileInfo PackageDependencies = new FileInfo("PackageDependencies.sql");
                 FileInfo PackageFramework = new FileInfo("PackageFramework.sql");

@@ -17,6 +17,12 @@ namespace CatalogTestTool
         public string releaseNotes;
         public string language;
         public string tags;
+        public DateTime created;
+        public DateTime published;
+        public Boolean isLatest;
+        public Boolean isLatestStable;
+        public Boolean requiresLicenseAcceptance;
+        public Boolean isPrerelease;
         public string iconUrl;
         public string projectUrl;
         public string licenseUrl;
@@ -28,6 +34,12 @@ namespace CatalogTestTool
         public int key;//registration key
         public string id;//package id
         public int downloadCount;
+    }
+
+    public class PackageAuthors
+    {
+        public int key;//registration key
+        public string name;//package id
     }
 
     public class PackageFrameworks

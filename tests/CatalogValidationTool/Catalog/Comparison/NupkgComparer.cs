@@ -2,13 +2,13 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
-using System.Data.SqlTypes;
 using System.Linq;
+using System.Xml;
 
 
 namespace CatalogTestTool
 {
-    public class DBComparer : IComparer
+    public class NupkgComparer : IComparer
     {
         /* Invoked by DataBaseGenerator after creating the miniDB
          Input: connection strings to the source DB and mini DB
@@ -17,11 +17,72 @@ namespace CatalogTestTool
         {
             /* In the following dictionaries, the Key consists of Package Key.
             The Value is a Tuple of the other metadata about each package. For class deinifitons, see PackageData.cs*/
-            Dictionary<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies>> sourceDictionary = GetPackageDictionary(connectionStringSource);
-            Dictionary<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies>> miniDBDictionary = GetPackageDictionary(connectionStringMiniDB);
+            Dictionary<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies>> sourceDictionary = GetPackageDictionaryNupkg(connectionStringSource);
+            Dictionary<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies>> miniDBDictionary = GetPackageDictionaryDB(connectionStringMiniDB);
             Compare(sourceDictionary, miniDBDictionary);
         }
 
+        public static Dictionary<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies>> GetPackageDictionaryNupkg(string path)
+        {
+            /*Runs the sql script and retrieves the relevant columns and adds to the dictionary*/
+            string pathToNupkg = @"C:\Nupkg";
+            List<string> xmlDocs = new List<string>();
+
+
+
+            Dictionary<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies>> packageInfoList = new Dictionary<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies>>();
+            foreach (string xmlDocument in xmlDocs)
+            {
+                XmlDocument reader= new XmlDocument();
+                reader.LoadXml(xmlDocument);
+                int count = 0;
+                if (reader!=null)           
+                {
+                    Packages package = new Packages();
+                    PackageFrameworks packageFrameworks = new PackageFrameworks();
+                    PackageDependencies packageDependencies = new PackageDependencies();
+                    package.description = reader["Description"].ToString();
+                    package.title = reader["Title"].ToString();
+                    package.version = reader["Version"].ToString();
+                    package.summary = reader["Summary"].ToString();
+                    package.releaseNotes = reader["ReleaseNotes"].ToString();
+                    package.language = reader["Language"].ToString();
+                    package.tags = reader["Tags"].ToString();//change format of tags in MiniDB
+                    package.iconUrl = reader["IconUrl"].ToString();
+                    package.projectUrl = reader["ProjectUrl"].ToString();
+                    package.licenseUrl = reader["LicenseUrl"].ToString();
+
+                    packageFrameworks.packageKey = reader["Package_Key"] as int? ?? default(int);
+                    packageFrameworks.targetFramework = reader["TargetFramework"].ToString();
+
+                    packageDependencies.packageKey = packageFrameworks.packageKey;
+                    packageDependencies.id = reader["dependencyId"].ToString().ToLower();
+                    packageDependencies.targetFramework = reader["dependencyFramework"].ToString();
+
+                    int dictionaryKey = 0;
+                    dictionaryKey = reader["Key"] as int? ?? default(int);
+                    Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies> dictionaryValue = new Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies>(packageRegistrations, package, packageFrameworks, packageDependencies);
+
+                    if (packageInfoList.Keys.Contains(dictionaryKey))
+                    {
+                        Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies> dictionaryValueExistingKey;
+                        packageInfoList.TryGetValue(dictionaryKey, out dictionaryValueExistingKey);
+                        dictionaryValueExistingKey.Item3.frameworks.Add(packageFrameworks.targetFramework);
+                        dictionaryValueExistingKey.Item4.dependencies.Add(new Tuple<string, string>(packageDependencies.id, packageDependencies.targetFramework));
+                    }
+
+                    else
+                    {
+                        packageInfoList.Add(dictionaryKey, dictionaryValue);
+                        count++;
+                    }
+
+                }
+                return packageInfoList;
+            }
+
+            return null;
+        }
 
         public void Compare(Dictionary<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies>> source, Dictionary<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies>> miniDB)
         {
@@ -55,25 +116,24 @@ namespace CatalogTestTool
             }
         }
 
-        public static Dictionary<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies>> GetPackageDictionary(string connectionString)
+        public static Dictionary<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies>> GetPackageDictionaryDB(string connectionString)
         {
             /*Runs the sql script and retrieves the relevant columns and adds to the dictionary*/
             string sql = @"
-               SELECT PackageRegistrations.[Id],PackageRegistrations.[DownloadCount],
+               	 SELECT PackageRegistrations.[Id],PackageRegistrations.[DownloadCount],
                     Packages.[Key],Packages.Description,Packages.IconUrl,Packages.LicenseUrl,Packages.ProjectUrl,
                     Packages.Summary, Packages.Tags, Packages.Title, Packages.Version, Packages.ReleaseNotes, Packages.Language,
-                    Packages.IsLatest,Packages.IsLatestStable,Packages.IsPrerelease,Packages.RequiresLicenseAcceptance,
-                    Packages.Created,Packages.Published,
-                    PackageAuthors.[PackageKey],PackageAuthors.Name,
                     PackageFrameworks.[Package_Key],PackageFrameworks.TargetFramework,
                     PackageDependencies.[PackageKey], PackageDependencies.[Id] as dependencyId,PackageDependencies.TargetFramework as dependencyFramework
-                                   
+                    
+                       
                 FROM Packages 
 
                 INNER JOIN PackageRegistrations ON PackageRegistrations.[Key] = Packages.[PackageRegistrationKey] 
-				LEFT OUTER JOIN PackageAuthors ON Packages.[Key]=PackageAuthors.[PackageKey]
+				
                 LEFT OUTER JOIN PackageDependencies ON Packages.[Key] = PackageDependencies.[PackageKey]
 				LEFT OUTER JOIN PackageFrameworks ON Packages.[Key] = PackageFrameworks.[Package_Key]
+
                 ";
 
             using (SqlConnection connection = new SqlConnection(connectionString))
@@ -93,9 +153,8 @@ namespace CatalogTestTool
                         PackageRegistrations packageRegistrations = new PackageRegistrations();
                         PackageFrameworks packageFrameworks = new PackageFrameworks();
                         PackageDependencies packageDependencies = new PackageDependencies();
-                        PackageAuthors packageAuthors = new PackageAuthors();
 
-                        packageRegistrations.id = reader["Id"].ToString().ToLower();
+                        packageRegistrations.id = reader["Id"].ToString();
                         string downloadCount = reader["DownloadCount"].ToString();
                         packageRegistrations.downloadCount = Convert.ToInt32(downloadCount);
 
@@ -105,19 +164,12 @@ namespace CatalogTestTool
                         package.title = reader["Title"].ToString();
                         package.version = reader["Version"].ToString();
                         package.summary = reader["Summary"].ToString();
-                        package.isLatest = Boolean.Parse(reader["IsLatest"].ToString());
-                        package.isLatestStable = Boolean.Parse(reader["IsLatestStable"].ToString());
-                        package.isPrerelease = Boolean.Parse(reader["IsPrerelease"].ToString());
-                        package.requiresLicenseAcceptance = Boolean.Parse(reader["RequiresLicenseAcceptance"].ToString());
+                        package.releaseNotes = reader["ReleaseNotes"].ToString();
                         package.language = reader["Language"].ToString();
                         package.tags = reader["Tags"].ToString();//change format of tags in MiniDB
-                        package.created = DateTime.Parse(reader["Created"].ToString());
-                        package.published = DateTime.Parse(reader["Published"].ToString());
+                        package.iconUrl = reader["IconUrl"].ToString();
                         package.projectUrl = reader["ProjectUrl"].ToString();
                         package.licenseUrl = reader["LicenseUrl"].ToString();
-
-                        packageAuthors.key = Convert.ToInt32(reader["PackageKey"].ToString());
-                        packageAuthors.name = reader["Name"].ToString();
 
                         packageFrameworks.packageKey = reader["Package_Key"] as int? ?? default(int);
                         packageFrameworks.targetFramework = reader["TargetFramework"].ToString();
@@ -210,47 +262,18 @@ namespace CatalogTestTool
 
             }
 
+            if (sourcePackage.iconUrl != miniDBpackage.iconUrl)
+            {
+                message += "iconUrl does not match; Table: Packages. ";
+
+            }
+
             if (sourcePackage.licenseUrl != miniDBpackage.licenseUrl)
             {
                 message += "licenseUrl does not match; Table: Packages. ";
 
             }
 
-            if (sourcePackage.isLatest != miniDBpackage.isLatest)
-            {
-                message += "isLatest does not match; Table: Packages. ";
-
-            }
-
-            if (sourcePackage.isLatestStable != miniDBpackage.isLatestStable)
-            {
-                message += "isLatestStable does not match; Table: Packages. ";
-
-            }
-
-            if (sourcePackage.created != miniDBpackage.created)
-            {
-                message += "created does not match; Table: Packages. ";
-
-            }
-
-            if (sourcePackage.published != miniDBpackage.published)
-            {
-                message += "published does not match; Table: Packages. ";
-
-            }
-           
-            if (sourcePackage.requiresLicenseAcceptance != miniDBpackage.requiresLicenseAcceptance)
-            {
-                message += "requiresLicenseAcceptance does not match; Table: Packages. ";
-
-            }
-
-            if (sourcePackage.isPrerelease != miniDBpackage.isPrerelease)
-            {
-                message += "isPrerelease does not match; Table: Packages. ";
-
-            }
             else
             {
                 message = "No error; Table: Packages.";

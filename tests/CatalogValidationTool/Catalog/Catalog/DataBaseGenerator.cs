@@ -18,16 +18,17 @@ namespace CatalogTestTool
     {
         static async Task ReadCatalog(string baseAddress)
         {
-            DateTime lastReadTime = DateTime.Parse("5/28/2014 9:04:10 PM");//TODO: remove hardcoded lastReadTime
-            
-            Uri address = new Uri(string.Format("{0}catalog/index.json", baseAddress));
+            DateTime lastReadTime = TestCatalogWriter.lastTime;
+            //DateTime lastReadTime = DateTime.Parse("5/28/2014 9:04:10 PM");//TODO: remove hardcoded lastReadTime
+
+            Uri address = new Uri(string.Format("{0}index.json", baseAddress));
             HttpClient client = new HttpClient();
             SqlConnection connection = null;
 
             try
             {
                 //connect to the miniDB 
-                string sqlConnectionString = ConfigurationManager.AppSettings["miniDBConnectionString"];
+                string sqlConnectionString = ConfigurationManager.AppSettings["MiniDBConnectionString"];
                 connection = new SqlConnection(sqlConnectionString);
                 connection.Open();
             }
@@ -46,18 +47,18 @@ namespace CatalogTestTool
             string indexJson = await client.GetStringAsync(address);
             JObject indexObj = JObject.Parse(indexJson);
             int count = 0;
-            foreach (JToken indexItem in indexObj["item"])
+            foreach (JToken indexItem in indexObj["items"])
             {
-                DateTime indexItemTimeStamp = indexItem["catalogTimestamp"].ToObject<DateTime>();
+                DateTime indexItemTimeStamp = indexItem["commitTimestamp"].ToObject<DateTime>();
 
                 if (indexItemTimeStamp > lastReadTime)
                 {
                     string pageJson = await client.GetStringAsync(indexItem["url"].ToObject<Uri>());
                     JObject pageObj = JObject.Parse(pageJson);
 
-                    foreach (JToken pageItem in pageObj["item"])
+                    foreach (JToken pageItem in pageObj["items"])
                     {
-                        DateTime pageItemTimeStamp = pageItem["catalogTimestamp"].ToObject<DateTime>();
+                        DateTime pageItemTimeStamp = pageItem["commitTimestamp"].ToObject<DateTime>();
 
                         if (pageItemTimeStamp > lastReadTime)
                         {
@@ -67,19 +68,108 @@ namespace CatalogTestTool
                             //read the meta data required from each package
                             try
                             {
-                                int key = dataObj["http://nuget.org/gallery#key"].ToObject<Int32>();
+                                int key = dataObj["catalog:galleryKey"].ToObject<Int32>();
                                 string id = dataObj["id"].ToString();
-                                string description = dataObj["description"].ToString();
-                                string tag = dataObj["tag"].ToString();
+                                SqlDateTime created = dataObj["created"].ToObject<SqlDateTime>();
+
+                                string description = null;
+                                try
+                                {
+                                    description = dataObj["description"].ToString();
+                                }
+
+                                catch
+                                {
+                                    description = "";
+                                }
+
+                                bool isLatest = dataObj["isLatest"].ToObject<bool>();
+                                string tag = null;
+                                try
+                                {
+                                    tag = dataObj["tag"].ToString();
+                                }
+
+                                catch
+                                {
+                                    tag = "";
+                                }
+
                                 string tagFormatted = ParseTags(tag);
-                                string summary = dataObj["summary"].ToString();
+                                string summary = null;
+                                try
+                                {
+                                    summary = dataObj["summary"].ToString();
+                                }
+
+                                catch
+                                {
+                                    summary = "";
+                                }
+
                                 string version = dataObj["version"].ToString();
-                                string iconUrl = dataObj["iconUrl"].ToString();
-                                string projectUrl = dataObj["projectUrl"].ToString();
-                                string licenseUrl = dataObj["licenseUrl"].ToString();
-                                string title = dataObj["title"].ToString();
-                                string releaseNotes = dataObj["releaseNotes"].ToString();
-                                string language = dataObj["language"].ToString();
+
+                                string authors = null;
+                                try
+                                {
+                                    authors = dataObj["authors"].ToString();
+                                }
+
+                                catch
+                                {
+                                    authors = "";
+                                }
+
+                                bool isLatestStable = dataObj["isLatestStable"].ToObject<bool>();
+                                bool isPrerelease = dataObj["isPrerelease"].ToObject<bool>();
+                                SqlDateTime published = dataObj["published"].ToObject<SqlDateTime>();
+                                string projectUrl = "";
+                                try
+                                {
+                                    projectUrl = dataObj["projectUrl"].ToString();
+                                }
+                                catch
+                                {
+                                    projectUrl = "";
+                                }
+
+                                string licenseUrl = "";
+                                try
+                                {
+                                   licenseUrl = dataObj["licenseUrl"].ToString();
+                                }
+                                catch
+                                {
+                                    licenseUrl = "";
+                                }
+
+                                bool requireLicenseAcceptance = dataObj["requireLicenseAcceptance"].ToObject<bool>();
+                                string title = "";
+                                try
+                                {
+                                    title = dataObj["title"].ToString();
+                                }
+                                catch
+                                {
+                                    title = "";
+                                }
+
+
+
+                                //string releaseNotes = dataObj["releaseNotes"].ToString();
+                                string language = "";
+                                try
+                                {
+                                    language = dataObj["language"].ToString();
+                                }
+
+                                catch
+                                {
+                                    language = "";
+                                }
+
+                                string downloadCountString = dataObj["downloadCount"].ToString() ?? "";
+                                long downloadCount = Convert.ToInt64(downloadCountString);
                                 List<Tuple<string, string>> ListOfDependencies = new List<Tuple<string, string>>();
                                 JToken dependencies;
                                 if (dataObj.TryGetValue("dependencies", out dependencies))
@@ -99,9 +189,17 @@ namespace CatalogTestTool
 
                                         foreach (JToken dependency in group["dependency"])
                                         {
-                                            string dependencyId = dependency["id"].ToString();
-                                            ListOfDependencies.Add(new Tuple<string, string>(targetFrameworkOfDependencies, dependencyId));
-                                            
+                                            try
+                                            {
+                                                string dependencyId = dependency["id"].ToString() ?? "";
+                                                ListOfDependencies.Add(new Tuple<string, string>(targetFrameworkOfDependencies, dependencyId));
+                                            }
+
+                                            catch
+                                            {
+
+                                            }
+
                                         }
                                     }
                                 }
@@ -114,7 +212,7 @@ namespace CatalogTestTool
                                     foreach (string tf in targetFramework)
                                     {
                                         targetFrameworksList.Add(tf);
-                                        
+
                                     }
                                 }
 
@@ -125,23 +223,23 @@ namespace CatalogTestTool
                                 int check = Convert.ToInt32(checkString);
 
                                 if (check == 0)
-                                {       
+                                {
                                     //if the entry does not exist, Add it to the PackageRegistrations Table on the DB
                                     SqlCommand commandPackageRegistrations = new SqlCommand("INSERT INTO PackageRegistrations (Id, DownloadCount)" +
-                                        "VALUES (@ID,0)", connection);                                    
+                                        "VALUES (@ID,0)", connection);
                                     commandPackageRegistrations.Parameters.AddWithValue("@ID", id);
                                     commandPackageRegistrations.ExecuteNonQuery();
                                 }
 
                                 SqlCommand getIDENTITY = new SqlCommand("SELECT [Key] from PackageRegistrations WHERE [Id]=@ID", connection);
                                 getIDENTITY.Parameters.AddWithValue("@ID", id);
-                                string identity = getIDENTITY.ExecuteScalar().ToString();                                
+                                string identity = getIDENTITY.ExecuteScalar().ToString();
 
                                 //Populate Packages TABLE
                                 SqlCommand commandPackages = new SqlCommand("SET IDENTITY_INSERT Packages ON; INSERT INTO Packages ([Key],PackageRegistrationKey,Created, Description, DownloadCount," +
-                                    "Hash, IconUrl,IsLatest, LastUpdated, LicenseUrl, Published, PackageFileSize,ProjectUrl,RequiresLicenseAcceptance, Summary, Tags, Title, Version," +
-                                    "IsLatestStable, Listed, IsPrerelease, ReleaseNotes, Language, HideLicenseReport) VALUES (@KEY,@IDENTITY , @date, @DSCRP, 0, 'null',@iUrl, 0 , @date , @lUrl ," +
-                                    " @date, 0, @pUrl, 0,@summary,@tag,@title,@vers, 0, 0, 0,@rNotes, @lang, 0); SET IDENTITY_INSERT Packages OFF", connection);
+                                    "Hash, IsLatest, LastUpdated, LicenseUrl, Published, PackageFileSize,ProjectUrl,RequiresLicenseAcceptance, Summary, Tags, Title, Version," +
+                                    "IsLatestStable, Listed, IsPrerelease, Language, HideLicenseReport) VALUES (@KEY,@IDENTITY , @created, @DSCRP, @downloadCount, 'null', 0 , @IsLatest , @lUrl ," +
+                                    " @published, 0, @pUrl, @requiresLicenseAcceptance,@summary,@tag,@title,@vers, @IsLatestStable, 0, @preRelease, @lang, 0); SET IDENTITY_INSERT Packages OFF", connection);
                                 commandPackages.Parameters.AddWithValue("@IDENTITY", identity);
                                 commandPackages.Parameters.AddWithValue("@KEY", key);
                                 commandPackages.Parameters.AddWithValue("@DSCRP", description);
@@ -149,14 +247,26 @@ namespace CatalogTestTool
                                 commandPackages.Parameters.AddWithValue("@title", title);
                                 commandPackages.Parameters.AddWithValue("@summary", summary);
                                 commandPackages.Parameters.AddWithValue("@vers", version);
-                                commandPackages.Parameters.AddWithValue("@iUrl", iconUrl);
+                                commandPackages.Parameters.AddWithValue("@downloadCount", downloadCount);
                                 commandPackages.Parameters.AddWithValue("@pUrl", projectUrl);
                                 commandPackages.Parameters.AddWithValue("@lUrl", licenseUrl);
                                 commandPackages.Parameters.AddWithValue("@lang", language);
-                                commandPackages.Parameters.AddWithValue("@rNotes", releaseNotes);
-                                commandPackages.Parameters.AddWithValue("@date", SqlDateTime.MinValue);
+                                //commandPackages.Parameters.AddWithValue("@rNotes", releaseNotes);
+                                commandPackages.Parameters.AddWithValue("@created", created);
+                                commandPackages.Parameters.AddWithValue("@IsLatest", isLatest);
+                                commandPackages.Parameters.AddWithValue("@IsLatestStable", isLatestStable);
+                                commandPackages.Parameters.AddWithValue("@published", published);
+                                commandPackages.Parameters.AddWithValue("@preRelease", isPrerelease);
+                                commandPackages.Parameters.AddWithValue("@requiresLicenseAcceptance", requireLicenseAcceptance);
                                 commandPackages.ExecuteNonQuery();
-                                
+
+                                //Populate PackageAuthors TABLE
+                                SqlCommand commandPackageAuthors = new SqlCommand("INSERT INTO PackageAuthors (Name, PackageKey) " +
+                                        "VALUES (@authors, @KEY)", connection);
+                                commandPackageAuthors.Parameters.AddWithValue("@authors", authors);
+                                commandPackageAuthors.Parameters.AddWithValue("@KEY", key);
+                                commandPackageAuthors.ExecuteNonQuery();
+
                                 //Populate PackageFrameworks TABLE
                                 foreach (var targetframework in targetFrameworksList)
                                 {
@@ -176,7 +286,7 @@ namespace CatalogTestTool
                                     commandPackageDependencies.Parameters.AddWithValue("@TF", dependency.Item1);
                                     commandPackageDependencies.Parameters.AddWithValue("@DependencyId", dependency.Item2);
                                     commandPackageDependencies.ExecuteNonQuery();
-                                }                               
+                                }
                             }
 
                             catch (Exception exception)
@@ -191,7 +301,7 @@ namespace CatalogTestTool
                 }
             }
 
-            connection.Close();
+
         }
 
         public static string ParseTags(string tags)
@@ -231,13 +341,13 @@ namespace CatalogTestTool
             try
             {
                 //string baseAddress = "http://linked.blob.core.windows.net/demo/";
-                string baseAddress = "http://localhost:8000/test/";
+                string baseAddress = "http://localhost:8000/";
                 //CreateTablesMiniDB.RunScripts();//Creates the miniDB
-                TestCatalogWriter.WriteCatalog();//Writes a catalog
+                //TestCatalogWriter.WriteCatalog();//Writes a catalog
                 ReadCatalog(baseAddress).Wait();//Reads the catalog and populates miniDB
 
                 string connectionStringSource = ConfigurationManager.AppSettings["SourceDBConnectionString"];
-                string connectionStringMiniDB = ConfigurationManager.AppSettings["miniDBConnectionString"];
+                string connectionStringMiniDB = ConfigurationManager.AppSettings["MiniDBConnectionString"];
                 DBComparer dbComparer = new DBComparer();
                 dbComparer.ValidateDataIntegrity(connectionStringSource, connectionStringMiniDB);//Compare miniDB and source DB- check for data integrity
                 Console.WriteLine(@"Please find the JSON report in C:\TEMP");

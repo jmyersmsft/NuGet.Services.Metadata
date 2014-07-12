@@ -3,28 +3,29 @@ using NuGet.Services.Metadata.Catalog.Maintenance;
 using NuGet.Services.Metadata.Catalog.Persistence;
 using System;
 using System.Configuration;
+using System.Threading.Tasks;
 
 namespace CatalogTestTool
 {
+     
     public class TestCatalogWriter
     {
+        public static DateTime lastTime = new DateTime();
         /*Writes the catalog using the given source */
         public static void WriteCatalog()
         {
             const int SqlChunkSize = 2000;
             //Initial Catalog points to the DataBase being used as Source
-            string sqlConnectionString = ConfigurationManager.AppSettings["SourceDBConnectionString"]; ;
+            string sqlConnectionString = ConfigurationManager.AppSettings["SourceDBConnectionString"];
 
             const int CatalogBatchSize = 1000;
             const int CatalogMaxPageSize = 1000;
 
-            Storage storage = new FileStorage
-            {
-                Path = @"c:\CatalogTest\test",
-                Container = "test",
-                BaseAddress = "http://localhost:8000"
-            };
-
+             string Path = @"c:\CatalogTest\test";
+                string Container = "test";
+                string BaseAddress = "http://localhost:8000";
+                Storage storage = new FileStorage(BaseAddress, Path);
+         
             //TODO: CONVERT THE STORAGE TO AZURE STORAGE INSTEAD OF ON DISC
             //************************AZURE STORAGE***************************
             //Storage storage = new AzureStorage
@@ -43,23 +44,23 @@ namespace CatalogTestTool
 
             while (true)
             {
-                Tuple<int, int> range = GalleryExport.GetNextRange(sqlConnectionString, lastHighestPackageKey, SqlChunkSize);
+                var range = GalleryExport.GetNextRange(sqlConnectionString, lastHighestPackageKey, SqlChunkSize).Result;
 
                 if (range.Item1 == 0 && range.Item2 == 0)
                 {
                     break;
                 }
+                Console.WriteLine("Writing packages with Keys {0}-{1} to catalog...", range.Item1, range.Item2);
 
-                Console.WriteLine("{0} {1}", range.Item1, range.Item2);
-
-                GalleryExport.FetchRange(sqlConnectionString, range, batcher);
+                GalleryExport.WriteRange(sqlConnectionString, range, batcher).Wait();
 
                 lastHighestPackageKey = range.Item2;
             }
 
-            batcher.Complete();
+            batcher.Complete().Wait();
 
             Console.WriteLine(batcher.Total);
+            lastTime = DateTime.Now;
         }
     }
 }
