@@ -17,45 +17,49 @@ namespace CatalogTestTool
         {
             /* In the following dictionaries, the Key consists of Package Key.
             The Value is a Tuple of the other metadata about each package. For class deinifitons, see PackageData.cs*/
-            Dictionary<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies>> sourceDictionary = GetPackageDictionary(connectionStringSource);
-            Dictionary<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies>> miniDBDictionary = GetPackageDictionary(connectionStringMiniDB);
+            Dictionary<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies, PackageAuthors>> sourceDictionary = GetPackageDictionary(connectionStringSource);
+            Dictionary<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies, PackageAuthors>> miniDBDictionary = GetPackageDictionary(connectionStringMiniDB);
             Compare(sourceDictionary, miniDBDictionary);
         }
 
 
-        public void Compare(Dictionary<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies>> source, Dictionary<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies>> miniDB)
+        public void Compare(Dictionary<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies, PackageAuthors>> source, Dictionary<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies, PackageAuthors>> miniDB)
         {
             /* Input: Dictionaries populated with data from source DB and mini DB
              Each package is checked for the integrity of metadata*/
             AzureLogger azurelog = new AzureLogger();//Report logger initialized
             System.IO.StreamWriter writer = new System.IO.StreamWriter(@"C:\TEMP\JsonReport.txt");//Where the report is logged
-            foreach (KeyValuePair<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies>> entry in miniDB)
+            foreach (KeyValuePair<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies, PackageAuthors>> entry in miniDB)
             {
-                Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies> valueSource;
+                Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies, PackageAuthors> valueSource;
                 if (source.TryGetValue(entry.Key, out valueSource))//find corresponding key in the source DB
                 {
                     string messageRegistrations = "";
                     string messagePackages = "";
                     string messageFrameworks = "";
                     string messageDependencies = "";
+                    string messageAuthors = "";
                     List<string> errorMessages = new List<string>();
 
                     messageRegistrations = Equals(valueSource.Item1, entry.Value.Item1);
                     messagePackages = Equals(valueSource.Item2, entry.Value.Item2);
                     messageFrameworks = Equals(valueSource.Item3, entry.Value.Item3);
                     messageDependencies = Equals(valueSource.Item4, entry.Value.Item4);
-
+                    messageAuthors = Equals(valueSource.Item5, entry.Value.Item5);
                     errorMessages.Add(messageRegistrations);
                     errorMessages.Add(messagePackages);
                     errorMessages.Add(messageFrameworks);
                     errorMessages.Add(messageDependencies);
+                    errorMessages.Add(messageAuthors);
 
                     azurelog.LogPackage(valueSource.Item1.id, valueSource.Item2.version, errorMessages, writer);//Call to the method to log the status of the package                   
                 }
             }
+
+            writer.Close();
         }
 
-        public static Dictionary<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies>> GetPackageDictionary(string connectionString)
+        public static Dictionary<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies, PackageAuthors>> GetPackageDictionary(string connectionString)
         {
             /*Runs the sql script and retrieves the relevant columns and adds to the dictionary*/
             string sql = @"
@@ -64,15 +68,15 @@ namespace CatalogTestTool
                     Packages.Summary, Packages.Tags, Packages.Title, Packages.Version, Packages.ReleaseNotes, Packages.Language,
                     Packages.IsLatest,Packages.IsLatestStable,Packages.IsPrerelease,Packages.RequiresLicenseAcceptance,
                     Packages.Created,Packages.Published,
-                    PackageAuthors.[PackageKey],PackageAuthors.Name,
-                    PackageFrameworks.[Package_Key],PackageFrameworks.TargetFramework,
-                    PackageDependencies.[PackageKey], PackageDependencies.[Id] as dependencyId,PackageDependencies.TargetFramework as dependencyFramework
+                    PackageAuthors.Name,
+                    PackageFrameworks.TargetFramework,
+                    PackageDependencies.[Id] as dependencyId,PackageDependencies.TargetFramework as dependencyFramework
                                    
                 FROM Packages 
 
-                INNER JOIN PackageRegistrations ON PackageRegistrations.[Key] = Packages.[PackageRegistrationKey] 
-				LEFT OUTER JOIN PackageAuthors ON Packages.[Key]=PackageAuthors.[PackageKey]
-                LEFT OUTER JOIN PackageDependencies ON Packages.[Key] = PackageDependencies.[PackageKey]
+                INNER JOIN PackageRegistrations ON PackageRegistrations.[Key] = Packages.[PackageRegistrationKey]
+                LEFT OUTER JOIN PackageDependencies ON Packages.[Key] = PackageDependencies.[PackageKey] 
+				LEFT OUTER JOIN PackageAuthors ON Packages.[Key]=PackageAuthors.[PackageKey]            
 				LEFT OUTER JOIN PackageFrameworks ON Packages.[Key] = PackageFrameworks.[Package_Key]
                 ";
 
@@ -83,7 +87,7 @@ namespace CatalogTestTool
                 command.CommandType = CommandType.Text;
                 SqlDataReader reader = command.ExecuteReader(CommandBehavior.CloseConnection);
 
-                Dictionary<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies>> packageInfoList = new Dictionary<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies>>();
+                Dictionary<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies, PackageAuthors>> packageInfoList = new Dictionary<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies, PackageAuthors>>();
                 if (reader != null)
                 {
                     int count = 0;
@@ -102,7 +106,7 @@ namespace CatalogTestTool
                         string key = reader["Key"].ToString();
                         package.packageKey = Convert.ToInt32(key);
                         package.description = reader["Description"].ToString();
-                        package.title = reader["Title"].ToString();
+                        package.title = reader["Title"].ToString().ToLower();
                         package.version = reader["Version"].ToString();
                         package.summary = reader["Summary"].ToString();
                         package.isLatest = Boolean.Parse(reader["IsLatest"].ToString());
@@ -116,23 +120,24 @@ namespace CatalogTestTool
                         package.projectUrl = reader["ProjectUrl"].ToString();
                         package.licenseUrl = reader["LicenseUrl"].ToString();
 
-                        packageAuthors.key = Convert.ToInt32(reader["PackageKey"].ToString());
+                        string packageKeyString = reader["Key"].ToString();
+                        packageAuthors.packageKey = Convert.ToInt64(packageKeyString);
                         packageAuthors.name = reader["Name"].ToString();
 
-                        packageFrameworks.packageKey = reader["Package_Key"] as int? ?? default(int);
-                        packageFrameworks.targetFramework = reader["TargetFramework"].ToString();
+                        packageFrameworks.packageKey = Convert.ToInt64(packageKeyString);
+                        packageFrameworks.targetFramework = reader["TargetFramework"].ToString().ToLower();
 
                         packageDependencies.packageKey = packageFrameworks.packageKey;
                         packageDependencies.id = reader["dependencyId"].ToString().ToLower();
-                        packageDependencies.targetFramework = reader["dependencyFramework"].ToString();
+                        packageDependencies.targetFramework = reader["dependencyFramework"].ToString().ToLower();
 
                         int dictionaryKey = 0;
                         dictionaryKey = reader["Key"] as int? ?? default(int);
-                        Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies> dictionaryValue = new Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies>(packageRegistrations, package, packageFrameworks, packageDependencies);
+                        Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies, PackageAuthors> dictionaryValue = new Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies, PackageAuthors>(packageRegistrations, package, packageFrameworks, packageDependencies, packageAuthors);
 
                         if (packageInfoList.Keys.Contains(dictionaryKey))
                         {
-                            Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies> dictionaryValueExistingKey;
+                            Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies, PackageAuthors> dictionaryValueExistingKey;
                             packageInfoList.TryGetValue(dictionaryKey, out dictionaryValueExistingKey);
                             dictionaryValueExistingKey.Item3.frameworks.Add(packageFrameworks.targetFramework);
                             dictionaryValueExistingKey.Item4.dependencies.Add(new Tuple<string, string>(packageDependencies.id, packageDependencies.targetFramework));
@@ -140,6 +145,8 @@ namespace CatalogTestTool
 
                         else
                         {
+                            dictionaryValue.Item3.frameworks.Add(packageFrameworks.targetFramework);
+                            dictionaryValue.Item4.dependencies.Add(new Tuple<string, string>(packageDependencies.id, packageDependencies.targetFramework));
                             packageInfoList.Add(dictionaryKey, dictionaryValue);
                             count++;
                         }
@@ -239,12 +246,12 @@ namespace CatalogTestTool
                 message += "published does not match; Table: Packages. ";
 
             }
-           
-            if (sourcePackage.requiresLicenseAcceptance != miniDBpackage.requiresLicenseAcceptance)
-            {
-                message += "requiresLicenseAcceptance does not match; Table: Packages. ";
 
-            }
+            //if (sourcePackage.requiresLicenseAcceptance != miniDBpackage.requiresLicenseAcceptance)
+            //{
+            //    message += "requiresLicenseAcceptance does not match; Table: Packages. ";
+
+            //}
 
             if (sourcePackage.isPrerelease != miniDBpackage.isPrerelease)
             {
@@ -316,5 +323,35 @@ namespace CatalogTestTool
 
             return message;
         }
+
+        public string Equals(PackageAuthors sourcePackage, PackageAuthors miniDBpackage)
+        {
+            //Checks if the authors of each package were copied correctly to the catalog
+            string message = "";
+            if (sourcePackage.packageKey != miniDBpackage.packageKey)
+            {
+                message += "packageKeys do not match; Table: PackageAuthors. ";
+            }
+
+            foreach (string author in sourcePackage.authorsList)
+            {
+                if (!miniDBpackage.authorsList.Contains(author.TrimStart()))
+                {
+
+                    message = "Name does not match; Table: PackageAuthors. ";
+
+                }
+            }
+
+
+            if (message == "")
+            {
+                message = "No error; Table: PackageAuthors.";
+            }
+
+            return message;
+        }
+
+
     }
 }

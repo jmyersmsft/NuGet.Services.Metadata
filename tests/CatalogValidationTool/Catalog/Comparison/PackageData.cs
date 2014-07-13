@@ -31,27 +31,28 @@ namespace CatalogTestTool
 
     public class PackageRegistrations
     {
-        public int key;//registration key
+        public long key;//registration key
         public string id;//package id
         public int downloadCount;
     }
 
     public class PackageAuthors
     {
-        public int key;//registration key
+        public long packageKey;//registration key
         public string name;//package id
+        public List<string> authorsList = new List<string>();//list of authors
     }
 
     public class PackageFrameworks
     {
-        public int packageKey;
+        public long packageKey;
         public string targetFramework;
         public List<string> frameworks=new List<string>();//list of the frameworks the package supports
     }
 
     public class PackageDependencies
     {
-        public int packageKey;
+        public long packageKey;
         public List<Tuple<string, string>> dependencies=new List<Tuple<string,string>>();//list of dependencies of the package
         public string id;
         public string targetFramework;

@@ -32,5 +32,6 @@ namespace CatalogTestTool
             writer.WriteLine();
             stream.Close();
         }
+
     }
 }

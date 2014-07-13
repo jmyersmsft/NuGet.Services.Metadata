@@ -21,7 +21,7 @@ namespace CatalogTestTool
             DateTime lastReadTime = TestCatalogWriter.lastTime;
             //DateTime lastReadTime = DateTime.Parse("5/28/2014 9:04:10 PM");//TODO: remove hardcoded lastReadTime
 
-            Uri address = new Uri(string.Format("{0}index.json", baseAddress));
+            Uri address = new Uri(string.Format(@"{0}index.json", baseAddress));
             HttpClient client = new HttpClient();
             SqlConnection connection = null;
 
@@ -109,15 +109,20 @@ namespace CatalogTestTool
 
                                 string version = dataObj["version"].ToString();
 
-                                string authors = null;
-                                try
+                                JToken authors;
+                                string[] authorsArray;
+                                List<string> authorsList;
+                                if (dataObj.TryGetValue("author", out authors))
                                 {
-                                    authors = dataObj["authors"].ToString();
+                                    authorsArray = authors.ToString().Split(',');
+                                    authorsList = new List<string>(authorsArray);
+
                                 }
 
-                                catch
+                                else
                                 {
-                                    authors = "";
+                                    authorsList = new List<string>();
+                                    authorsList.Add("");
                                 }
 
                                 bool isLatestStable = dataObj["isLatestStable"].ToObject<bool>();
@@ -136,14 +141,14 @@ namespace CatalogTestTool
                                 string licenseUrl = "";
                                 try
                                 {
-                                   licenseUrl = dataObj["licenseUrl"].ToString();
+                                    licenseUrl = dataObj["licenseUrl"].ToString();
                                 }
                                 catch
                                 {
                                     licenseUrl = "";
                                 }
 
-                                bool requireLicenseAcceptance = dataObj["requireLicenseAcceptance"].ToObject<bool>();
+                                //bool requiresLicenseAcceptance = dataObj["requiresLicenseAcceptance"].ToObject<bool>();
                                 string title = "";
                                 try
                                 {
@@ -168,8 +173,19 @@ namespace CatalogTestTool
                                     language = "";
                                 }
 
-                                string downloadCountString = dataObj["downloadCount"].ToString() ?? "";
-                                long downloadCount = Convert.ToInt64(downloadCountString);
+                                string downloadCountString = ""; long downloadCount = 0;
+                                try
+                                {
+                                    downloadCountString = dataObj["downloadCount"].ToString();
+                                    downloadCount = Convert.ToInt64(downloadCountString);
+                                }
+
+                                catch
+                                {
+                                    downloadCountString = "";
+                                }
+
+
                                 List<Tuple<string, string>> ListOfDependencies = new List<Tuple<string, string>>();
                                 JToken dependencies;
                                 if (dataObj.TryGetValue("dependencies", out dependencies))
@@ -189,17 +205,19 @@ namespace CatalogTestTool
 
                                         foreach (JToken dependency in group["dependency"])
                                         {
+                                            string dependencyId = "";
                                             try
                                             {
-                                                string dependencyId = dependency["id"].ToString() ?? "";
-                                                ListOfDependencies.Add(new Tuple<string, string>(targetFrameworkOfDependencies, dependencyId));
+                                                dependencyId = dependency["packageId"].ToString();
+
                                             }
 
                                             catch
                                             {
-
+                                                dependencyId = "";
                                             }
 
+                                            ListOfDependencies.Add(new Tuple<string, string>(targetFrameworkOfDependencies, dependencyId));
                                         }
                                     }
                                 }
@@ -215,6 +233,8 @@ namespace CatalogTestTool
 
                                     }
                                 }
+
+                                else targetFrameworksList.Add("");
 
                                 //Checks if a PackageRegistrations entry already exists
                                 SqlCommand checkPackageRegistrations = new SqlCommand("SELECT count(*) FROM PackageRegistrations WHERE [Id] = @ID", connection);
@@ -257,16 +277,18 @@ namespace CatalogTestTool
                                 commandPackages.Parameters.AddWithValue("@IsLatestStable", isLatestStable);
                                 commandPackages.Parameters.AddWithValue("@published", published);
                                 commandPackages.Parameters.AddWithValue("@preRelease", isPrerelease);
-                                commandPackages.Parameters.AddWithValue("@requiresLicenseAcceptance", requireLicenseAcceptance);
+                                commandPackages.Parameters.AddWithValue("@requiresLicenseAcceptance", false);
                                 commandPackages.ExecuteNonQuery();
 
                                 //Populate PackageAuthors TABLE
-                                SqlCommand commandPackageAuthors = new SqlCommand("INSERT INTO PackageAuthors (Name, PackageKey) " +
-                                        "VALUES (@authors, @KEY)", connection);
-                                commandPackageAuthors.Parameters.AddWithValue("@authors", authors);
-                                commandPackageAuthors.Parameters.AddWithValue("@KEY", key);
-                                commandPackageAuthors.ExecuteNonQuery();
-
+                                foreach (var author in authorsList)
+                                {
+                                    SqlCommand commandPackageAuthors = new SqlCommand("INSERT INTO PackageAuthors (Name, PackageKey) " +
+                                            "VALUES (@authors, @KEY)", connection);
+                                    commandPackageAuthors.Parameters.AddWithValue("@authors", author);
+                                    commandPackageAuthors.Parameters.AddWithValue("@KEY", key);
+                                    commandPackageAuthors.ExecuteNonQuery();
+                                }
                                 //Populate PackageFrameworks TABLE
                                 foreach (var targetframework in targetFrameworksList)
                                 {
@@ -340,30 +362,49 @@ namespace CatalogTestTool
         {
             try
             {
-                //string baseAddress = "http://linked.blob.core.windows.net/demo/";
-                string baseAddress = "http://localhost:8000/";
-                //CreateTablesMiniDB.RunScripts();//Creates the miniDB
-                //TestCatalogWriter.WriteCatalog();//Writes a catalog
-                ReadCatalog(baseAddress).Wait();//Reads the catalog and populates miniDB
+                bool createMiniDB = false;
+                bool createCatalog = false;
+                bool populateMiniDB = true;
+                bool compareSourceToMiniDB = true;
+                TasksList(createMiniDB, createCatalog, populateMiniDB, compareSourceToMiniDB);
 
-                string connectionStringSource = ConfigurationManager.AppSettings["SourceDBConnectionString"];
-                string connectionStringMiniDB = ConfigurationManager.AppSettings["MiniDBConnectionString"];
-                DBComparer dbComparer = new DBComparer();
-                dbComparer.ValidateDataIntegrity(connectionStringSource, connectionStringMiniDB);//Compare miniDB and source DB- check for data integrity
-                Console.WriteLine(@"Please find the JSON report in C:\TEMP");
             }
 
             catch (Exception e)
             {
                 PrintException(e);
             }
+
         }
 
+        public static void TasksList(bool createMiniDB, bool createCatalog, bool populateMiniDB, bool compareSourceToMiniDB)
+        {
+            //string baseAddress = "http://linked.blob.core.windows.net/demo/"; //"http://localhost:8000/";
+            string baseAddress = ConfigurationManager.AppSettings["CatalogAddress"];
 
+            if (createMiniDB)
+            {
+                CreateTablesMiniDB.RunScripts();//Creates the miniDB
+            }
 
+            if (createCatalog)
+            {
+                TestCatalogWriter.WriteCatalog();//Writes a catalog
+            }
 
+            if (populateMiniDB)
+            {
+                ReadCatalog(baseAddress).Wait();//Reads the catalog and populates miniDB
+            }
 
+            if (compareSourceToMiniDB)
+            {
+                string connectionStringSource = ConfigurationManager.AppSettings["SourceDBConnectionString"];
+                string connectionStringMiniDB = ConfigurationManager.AppSettings["MiniDBConnectionString"];
+                DBComparer dbComparer = new DBComparer();
+                dbComparer.ValidateDataIntegrity(connectionStringSource, connectionStringMiniDB);//Compare miniDB and source DB- check for data integrity
+                Console.WriteLine(@"Please find the JSON report in C:\TEMP");
+            }
+        }
     }
-
-
 }

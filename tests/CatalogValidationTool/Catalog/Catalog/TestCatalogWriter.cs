@@ -21,7 +21,7 @@ namespace CatalogTestTool
             const int CatalogBatchSize = 1000;
             const int CatalogMaxPageSize = 1000;
 
-             string Path = @"c:\CatalogTest\test";
+             string Path = @"c:\CatalogTest";
                 string Container = "test";
                 string BaseAddress = "http://localhost:8000";
                 Storage storage = new FileStorage(BaseAddress, Path);
