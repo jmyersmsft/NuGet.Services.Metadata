@@ -41,7 +41,7 @@ namespace CatalogTestTool
                 server.ConnectionContext.ExecuteNonQuery(PackageDependenciesScript);
                 server.ConnectionContext.ExecuteNonQuery(PackageFrameworkScript);
                 server.ConnectionContext.ExecuteNonQuery(PackageAuthorsScript);
-                server.ConnectionContext.ExecuteNonQuery(SettingsScript);
+                
 
                 connection.Close();
             }

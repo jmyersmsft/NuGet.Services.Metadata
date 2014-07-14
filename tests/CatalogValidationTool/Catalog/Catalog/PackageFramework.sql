@@ -21,7 +21,7 @@ CREATE TABLE [dbo].[PackageFrameworks](
 GO
 
 ALTER TABLE [dbo].[PackageFrameworks]  WITH CHECK ADD  CONSTRAINT [FK_PackageFrameworks_Packages_Package_Key] FOREIGN KEY([Package_Key])
-REFERENCES [dbo].[Packages] ([Key])
+REFERENCES [dbo].[Packages] ([GalleryKey])
 GO
 
 ALTER TABLE [dbo].[PackageFrameworks] CHECK CONSTRAINT [FK_PackageFrameworks_Packages_Package_Key]

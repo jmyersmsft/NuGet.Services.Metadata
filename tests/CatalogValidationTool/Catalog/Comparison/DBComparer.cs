@@ -64,7 +64,7 @@ namespace CatalogTestTool
             /*Runs the sql script and retrieves the relevant columns and adds to the dictionary*/
             string sql = @"
                SELECT PackageRegistrations.[Id],PackageRegistrations.[DownloadCount],
-                    Packages.[Key],Packages.Description,Packages.IconUrl,Packages.LicenseUrl,Packages.ProjectUrl,
+                    Packages.[GalleryKey],Packages.Description,Packages.IconUrl,Packages.LicenseUrl,Packages.ProjectUrl,
                     Packages.Summary, Packages.Tags, Packages.Title, Packages.Version, Packages.ReleaseNotes, Packages.Language,
                     Packages.IsLatest,Packages.IsLatestStable,Packages.IsPrerelease,Packages.RequiresLicenseAcceptance,
                     Packages.Created,Packages.Published,
@@ -103,7 +103,7 @@ namespace CatalogTestTool
                         string downloadCount = reader["DownloadCount"].ToString();
                         packageRegistrations.downloadCount = Convert.ToInt32(downloadCount);
 
-                        string key = reader["Key"].ToString();
+                        string key = reader["GalleryKey"].ToString();
                         package.packageKey = Convert.ToInt32(key);
                         package.description = reader["Description"].ToString();
                         package.title = reader["Title"].ToString().ToLower();
@@ -120,7 +120,7 @@ namespace CatalogTestTool
                         package.projectUrl = reader["ProjectUrl"].ToString();
                         package.licenseUrl = reader["LicenseUrl"].ToString();
 
-                        string packageKeyString = reader["Key"].ToString();
+                        string packageKeyString = reader["GalleryKey"].ToString();
                         packageAuthors.packageKey = Convert.ToInt64(packageKeyString);
                         packageAuthors.name = reader["Name"].ToString();
 
@@ -132,7 +132,7 @@ namespace CatalogTestTool
                         packageDependencies.targetFramework = reader["dependencyFramework"].ToString().ToLower();
 
                         int dictionaryKey = 0;
-                        dictionaryKey = reader["Key"] as int? ?? default(int);
+                        dictionaryKey = reader["GalleryKey"] as int? ?? default(int);
                         Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies, PackageAuthors> dictionaryValue = new Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies, PackageAuthors>(packageRegistrations, package, packageFrameworks, packageDependencies, packageAuthors);
 
                         if (packageInfoList.Keys.Contains(dictionaryKey))

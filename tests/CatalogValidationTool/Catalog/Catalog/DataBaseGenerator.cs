@@ -112,7 +112,7 @@ namespace CatalogTestTool
                                 JToken authors;
                                 string[] authorsArray;
                                 List<string> authorsList;
-                                if (dataObj.TryGetValue("author", out authors))
+                                if (dataObj.TryGetValue("authors", out authors))
                                 {
                                     authorsArray = authors.ToString().Split(',');
                                     authorsList = new List<string>(authorsArray);
@@ -256,12 +256,12 @@ namespace CatalogTestTool
                                 string identity = getIDENTITY.ExecuteScalar().ToString();
 
                                 //Populate Packages TABLE
-                                SqlCommand commandPackages = new SqlCommand("SET IDENTITY_INSERT Packages ON; INSERT INTO Packages ([Key],PackageRegistrationKey,Created, Description, DownloadCount," +
+                                SqlCommand commandPackages = new SqlCommand("INSERT INTO Packages (PackageRegistrationKey,GalleryKey,Created, Description, DownloadCount," +
                                     "Hash, IsLatest, LastUpdated, LicenseUrl, Published, PackageFileSize,ProjectUrl,RequiresLicenseAcceptance, Summary, Tags, Title, Version," +
-                                    "IsLatestStable, Listed, IsPrerelease, Language, HideLicenseReport) VALUES (@KEY,@IDENTITY , @created, @DSCRP, @downloadCount, 'null', 0 , @IsLatest , @lUrl ," +
-                                    " @published, 0, @pUrl, @requiresLicenseAcceptance,@summary,@tag,@title,@vers, @IsLatestStable, 0, @preRelease, @lang, 0); SET IDENTITY_INSERT Packages OFF", connection);
+                                    "IsLatestStable, Listed, IsPrerelease, Language, HideLicenseReport) VALUES (@IDENTITY,@GalleryKey, @created, @DSCRP, @downloadCount, 'null', 0 , @IsLatest , @lUrl ,"+
+                                    " @published, 0, @pUrl, @requiresLicenseAcceptance,@summary,@tag,@title,@vers, @IsLatestStable, 0, @preRelease, @lang, 0);", connection);
                                 commandPackages.Parameters.AddWithValue("@IDENTITY", identity);
-                                commandPackages.Parameters.AddWithValue("@KEY", key);
+                                commandPackages.Parameters.AddWithValue("@GalleryKey", key);
                                 commandPackages.Parameters.AddWithValue("@DSCRP", description);
                                 commandPackages.Parameters.AddWithValue("@tag", tagFormatted);
                                 commandPackages.Parameters.AddWithValue("@title", title);
@@ -365,9 +365,8 @@ namespace CatalogTestTool
                 bool createMiniDB = false;
                 bool createCatalog = false;
                 bool populateMiniDB = true;
-                bool compareSourceToMiniDB = true;
+                bool compareSourceToMiniDB = false;
                 TasksList(createMiniDB, createCatalog, populateMiniDB, compareSourceToMiniDB);
-
             }
 
             catch (Exception e)
@@ -392,10 +391,16 @@ namespace CatalogTestTool
                 TestCatalogWriter.WriteCatalog();//Writes a catalog
             }
 
+            StreamWriter Time = new StreamWriter(@"C:\Time\MiniDBPopulated.txt");
+            Time.WriteLine("Start: "+DateTime.Now);
+
             if (populateMiniDB)
             {
                 ReadCatalog(baseAddress).Wait();//Reads the catalog and populates miniDB
             }
+
+            Time.WriteLine("End: " + DateTime.Now);
+            Time.Close();
 
             if (compareSourceToMiniDB)
             {

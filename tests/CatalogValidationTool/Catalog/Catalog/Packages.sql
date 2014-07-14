@@ -10,6 +10,7 @@ GO
 
 CREATE TABLE [dbo].[Packages](
 	[Key] [int] IDENTITY(1,1) NOT NULL,
+	[GalleryKey] [int] UNIQUE NOT NULL,
 	[PackageRegistrationKey] [int] NOT NULL,
 	[Copyright] [nvarchar](max) NULL,
 	[Created] [datetime] NOT NULL,

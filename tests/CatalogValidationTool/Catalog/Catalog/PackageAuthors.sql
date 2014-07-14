@@ -20,7 +20,7 @@ PRIMARY KEY CLUSTERED
 GO
 
 ALTER TABLE [dbo].[PackageAuthors]  WITH CHECK ADD  CONSTRAINT [FK_PackageAuthors_Packages_PackageKey] FOREIGN KEY([PackageKey])
-REFERENCES [dbo].[Packages] ([Key])
+REFERENCES [dbo].[Packages] ([GalleryKey])
 GO
 
 ALTER TABLE [dbo].[PackageAuthors] CHECK CONSTRAINT [FK_PackageAuthors_Packages_PackageKey]
