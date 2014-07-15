@@ -87,6 +87,7 @@
   <ItemGroup>
     <Compile Include="CreateTablesMiniDB.cs" />
     <Compile Include="DataBaseGenerator.cs" />
+    <Compile Include="Program.cs" />
     <Compile Include="TestCatalogWriter.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

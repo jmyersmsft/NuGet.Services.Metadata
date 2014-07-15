@@ -14,7 +14,7 @@ namespace CatalogTestTool
             try
             {
                 //connect to the CatalogTest DB which is the miniDB created from the catalog
-                string sqlConnectionString = ConfigurationManager.AppSettings["MiniDBConnectionString"];
+                string sqlConnectionString = ConfigurationManager.AppSettings["MiniDBLocal"];
 
                 SqlConnection connection = new SqlConnection(sqlConnectionString);
                 connection.Open();
