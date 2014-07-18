@@ -15,7 +15,7 @@ namespace CatalogTestTool
         {
             try
             {
-                bool createMiniDB = true;
+                bool createMiniDB = false;
                 bool createCatalog = false;
                 bool populateMiniDB = true;
                 bool compareSourceToMiniDB = true;
@@ -71,7 +71,7 @@ namespace CatalogTestTool
 
             if (populateMiniDB)
             {
-                DataBaseGenerator.ReadCatalog(baseAddress).Wait();//Reads the catalog and populates miniDB
+                DataBaseGenerator.ReadCatalog();//Reads the catalog and populates miniDB
             }
 
             Time.WriteLine("End: " + DateTime.Now);

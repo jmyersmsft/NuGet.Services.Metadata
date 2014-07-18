@@ -27,6 +27,11 @@ namespace CatalogTestTool
         public string projectUrl;
         public string licenseUrl;
 
+        public PackageAuthors authors = new PackageAuthors();
+        public PackageDependencies dependencies = new PackageDependencies();
+        public PackageFrameworks frameworks = new PackageFrameworks();
+        public PackageRegistrations registration = new PackageRegistrations();
+
     }
 
     public class PackageRegistrations
@@ -47,13 +52,13 @@ namespace CatalogTestTool
     {
         public long packageKey;
         public string targetFramework;
-        public List<string> frameworks=new List<string>();//list of the frameworks the package supports
+        public List<string> frameworksList=new List<string>();//list of the frameworks the package supports
     }
 
     public class PackageDependencies
     {
         public long packageKey;
-        public List<Tuple<string, string>> dependencies=new List<Tuple<string,string>>();//list of dependencies of the package
+        public List<Tuple<string, string>> dependenciesList=new List<Tuple<string,string>>();//list of dependencies of the package
         public string id;
         public string targetFramework;
     }

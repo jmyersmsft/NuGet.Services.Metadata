@@ -1,12 +1,12 @@
-USE [CatalogTest]
-GO
+
+
 
 /****** Object:  Table [dbo].[Packages]    Script Date: 6/17/2014 10:18:18 AM ******/
-SET ANSI_NULLS ON
-GO
+SET ANSI_NULLS ON;
 
-SET QUOTED_IDENTIFIER ON
-GO
+
+SET QUOTED_IDENTIFIER ON;
+
 
 CREATE TABLE [dbo].[Packages](
 	[Key] [int] IDENTITY(1,1) NOT NULL,
@@ -49,14 +49,14 @@ PRIMARY KEY CLUSTERED
 (
 	[Key] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON)
-)
+);
 
-GO
+
 
 ALTER TABLE [dbo].[Packages]  WITH CHECK ADD  CONSTRAINT [FK_Packages_PackageRegistrations_PackageRegistrationKey] FOREIGN KEY([PackageRegistrationKey])
-REFERENCES [dbo].[PackageRegistrations] ([Key])
-GO
+REFERENCES [dbo].[PackageRegistrations] ([Key]);
+
 
 ALTER TABLE [dbo].[Packages] CHECK CONSTRAINT [FK_Packages_PackageRegistrations_PackageRegistrationKey]
-GO
+
 

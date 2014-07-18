@@ -24,6 +24,6 @@ namespace CatalogTestTool
         void ValidateDataIntegrity(string connectionStringSource, string connectionStringMiniDB);
 
         //Compares the dictionaries created with data from each of the DBs
-        void Compare(Dictionary<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies,PackageAuthors>> source, Dictionary<int, Tuple<PackageRegistrations, Packages, PackageFrameworks, PackageDependencies,PackageAuthors>> miniDB);
+        void Compare(Dictionary<int, Packages> source, Dictionary<int, Packages> miniDB);
     }
 }
