@@ -8,17 +8,17 @@ using System.Threading.Tasks;
 
 namespace CatalogTestTool
 {
-    class Program
+    public class Program
     {
-
+        public static StreamWriter totalTimeForRun = new StreamWriter(ConfigurationManager.AppSettings["totalTime"]);
         static void Main()
         {
             try
             {
-                bool createMiniDB = false;
-                bool createCatalog = false;
-                bool populateMiniDB = true;
-                bool compareSourceToMiniDB = true;
+                bool createMiniDB = Boolean.Parse(ConfigurationManager.AppSettings["BoolCreateMiniDB"]);
+                bool createCatalog = Boolean.Parse(ConfigurationManager.AppSettings["BoolWriteCatalog"]);
+                bool populateMiniDB = Boolean.Parse(ConfigurationManager.AppSettings["BoolPopulateMiniDB"]);
+                bool compareSourceToMiniDB = Boolean.Parse(ConfigurationManager.AppSettings["BoolCompare"]);
                 TasksList(createMiniDB, createCatalog, populateMiniDB, compareSourceToMiniDB);
             }
 
@@ -55,36 +55,38 @@ namespace CatalogTestTool
         {
             //string baseAddress = "http://linked.blob.core.windows.net/demo/"; //"http://localhost:8000/";
             string baseAddress = ConfigurationManager.AppSettings["CatalogAddress"];
-
+            totalTimeForRun.WriteLine(DateTime.Now);
             if (createMiniDB)
             {
-                CreateTablesMiniDB.RunScripts();//Creates the miniDB
+                CreateTablesMiniDB.CreateDatabaseAndTables();//Creates the miniDB
             }
 
             if (createCatalog)
             {
                 TestCatalogWriter.WriteCatalog();//Writes a catalog
             }
-
-            StreamWriter Time = new StreamWriter(@"C:\Time\MiniDBPopulated.txt");
-            Time.WriteLine("Start: " + DateTime.Now);
-
+         
             if (populateMiniDB)
             {
-                DataBaseGenerator.ReadCatalog();//Reads the catalog and populates miniDB
+                DataBaseGenerator.PopulateDB();//Reads the catalog and populates miniDB
             }
-
-            Time.WriteLine("End: " + DateTime.Now);
-            Time.Close();
-
+         
             if (compareSourceToMiniDB)
             {
+                StreamWriter Time = new StreamWriter(ConfigurationManager.AppSettings["ComparisonTime"]);
+                Time.WriteLine("Start Comparison: " + DateTime.Now);
                 string connectionStringSource = ConfigurationManager.AppSettings["SourceDBConnectionString"];
-                string connectionStringMiniDB = ConfigurationManager.AppSettings["MiniDBLocal"];
+                string connectionStringMiniDB = ConfigurationManager.AppSettings["MiniDBConnectionString"];
                 DBComparer dbComparer = new DBComparer();
-                dbComparer.ValidateDataIntegrity(connectionStringSource, connectionStringMiniDB);//Compare miniDB and source DB- check for data integrity
+                int packageCount=dbComparer.ValidateDataIntegrity(connectionStringSource, connectionStringMiniDB,totalTimeForRun);//Compare miniDB and source DB- check for data integrity
+                Time.WriteLine("End Comparison: " + DateTime.Now);
+                Time.Close();
                 Console.WriteLine(@"Please find the JSON report in C:\TEMP");
+
+               
             }
+
+            
         }
     }
 }

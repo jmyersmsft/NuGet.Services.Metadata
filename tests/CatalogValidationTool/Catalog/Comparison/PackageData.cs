@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace CatalogTestTool
 {
-    /*Each class represents a TABLE on the DB on SQL. The properties that are on the catalog are parsed and loaded into the properties of these classes*/
+    /*Represents the object being compared. Contains all the properties of JSON objects in the catalog */
     public class Packages
     {
         public int packageKey; 
@@ -34,6 +34,7 @@ namespace CatalogTestTool
 
     }
 
+    /*Each class represents a TABLE on the DB on SQL. The properties that are on the catalog are parsed and loaded into the properties of these classes*/
     public class PackageRegistrations
     {
         public long key;//registration key
@@ -43,15 +44,13 @@ namespace CatalogTestTool
 
     public class PackageAuthors
     {
-        public long packageKey;//registration key
-        public string name;//package id
+        public long packageKey;//registration key        
         public List<string> authorsList = new List<string>();//list of authors
     }
 
     public class PackageFrameworks
     {
         public long packageKey;
-        public string targetFramework;
         public List<string> frameworksList=new List<string>();//list of the frameworks the package supports
     }
 
