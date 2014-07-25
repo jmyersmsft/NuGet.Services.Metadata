@@ -21,9 +21,9 @@ namespace CatalogTestTool
             const int CatalogBatchSize = 1000;
             const int CatalogMaxPageSize = 1000;
 
-             string Path = @"c:\CatalogTest";
+             string Path = @"C:\CatalogTest";
                 string Container = "test";
-                string BaseAddress = "http://localhost:8000";
+                string BaseAddress = ConfigurationManager.AppSettings["CatalogAddress"];
                 Storage storage = new FileStorage(BaseAddress, Path);
          
             //TODO: CONVERT THE STORAGE TO AZURE STORAGE INSTEAD OF ON DISC

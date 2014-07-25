@@ -51,7 +51,7 @@ namespace CatalogTestTool
             DateTime start = Convert.ToDateTime(reader.ReadLine());
             DateTime end = Convert.ToDateTime(reader.ReadLine());
             StringBuilder resultOverview = new StringBuilder();
-            string testResultPath = Path.Combine(@"E:\TEMP\HTMLReport.html");
+            string testResultPath = ConfigurationManager.AppSettings["HTMLReport"];
             HTMLLogger logger = new HTMLLogger();
             logger.WriteTitle("Comparison Report for {0} packages",packageCount);
             logger.WriteHeader("Error log for {0} packages",errors);

@@ -78,7 +78,7 @@ namespace CatalogTestTool
                 return null;
             }
 
-            return tags.Replace(',', ' ').Replace(';', ' ').Replace('\t', ' ').Replace('[', ' ').Replace(']', ' ').Replace('"', ' ').TrimEnd().TrimStart();//.Replace(" ", "");
+            return tags.Replace(',', ' ').Replace(';', ' ').Replace('\t', ' ').Replace('[', ' ').Replace(']', ' ').Replace('"', ' ').Replace("  "," ").TrimEnd().TrimStart();//.Replace(" ", "");
         }
 
         public static bool PopulateDB()
@@ -86,7 +86,7 @@ namespace CatalogTestTool
             using (StreamWriter writer = new StreamWriter(ConfigurationManager.AppSettings["PopulateDBTime"]))
             {
                 string uri = ConfigurationManager.AppSettings["CatalogAddress"];
-                Uri index = new Uri(uri);
+                Uri index = new Uri(uri+"index.json");
                 CollectorCursor last = DateTime.MinValue;
 
                 var collector = new PackageUriCollector(1000);
@@ -207,11 +207,20 @@ namespace CatalogTestTool
 
                             if (check == 0)
                             {
-                                //if the entry does not exist, Add it to the PackageRegistrations Table on the DB
-                                SqlCommand commandPackageRegistrations = new SqlCommand("INSERT INTO PackageRegistrations (Id, DownloadCount)" +
-                                    "VALUES (@ID,0)", connection);
-                                commandPackageRegistrations.Parameters.AddWithValue("@ID", id);
-                                ExecuteNonQueryWithRetry(commandPackageRegistrations);
+                                try
+                                {
+                                    //if the entry does not exist, Add it to the PackageRegistrations Table on the DB
+                                    SqlCommand commandPackageRegistrations = new SqlCommand("INSERT INTO PackageRegistrations (Id, DownloadCount)" +
+                                        "VALUES (@ID,0)", connection);
+                                    commandPackageRegistrations.Parameters.AddWithValue("@ID", id);
+                                    //ExecuteNonQueryWithRetry(commandPackageRegistrations);
+                                    commandPackageRegistrations.ExecuteNonQuery();
+                                }
+
+                                catch (SqlException e)
+                                {
+                                    Console.WriteLine("Multiple threads tried to insert same key {0} . UNIQUE constraint on the PackageRegistration table's Id column will prevent duplication", id);
+                                }
 
                             }
 
@@ -222,8 +231,8 @@ namespace CatalogTestTool
                             //Populate Packages TABLE
                             SqlCommand commandPackages = new SqlCommand("INSERT INTO Packages (PackageRegistrationKey,GalleryKey,Created, Description, DownloadCount," +
                                 "Hash, IsLatest, LastUpdated, LicenseUrl, Published, PackageFileSize,ProjectUrl,RequiresLicenseAcceptance, Summary, Tags, Title, Version," +
-                                "IsLatestStable, Listed, IsPrerelease, Language, HideLicenseReport) VALUES (@IDENTITY,@GalleryKey, @created, @DSCRP, @downloadCount, 'null', 0 , @IsLatest , @lUrl ," +
-                                " @published, 0, @pUrl, @requiresLicenseAcceptance,@summary,@tag,@title,@vers, @IsLatestStable, 0, @preRelease, @lang, 0);", connection);
+                                "IsLatestStable, Listed, IsPrerelease, Language, HideLicenseReport) VALUES (@IDENTITY,@GalleryKey, @created, @DSCRP, @downloadCount, 'null',"+
+                            "@IsLatest , @dateTime, @lUrl , @published, 0, @pUrl, @requiresLicenseAcceptance,@summary,@tag,@title,@vers, @IsLatestStable, 0, @preRelease, @lang, 0);", connection);
                             commandPackages.Parameters.AddWithValue("@IDENTITY", identity);
                             commandPackages.Parameters.AddWithValue("@GalleryKey", key);
                             commandPackages.Parameters.AddWithValue("@DSCRP", description);
@@ -242,6 +251,7 @@ namespace CatalogTestTool
                             commandPackages.Parameters.AddWithValue("@published", published);
                             commandPackages.Parameters.AddWithValue("@preRelease", isPrerelease);
                             commandPackages.Parameters.AddWithValue("@requiresLicenseAcceptance", false);
+                            commandPackages.Parameters.AddWithValue("@dateTime", SqlDateTime.MinValue);
                             ExecuteNonQueryWithRetry(commandPackages);
 
 
@@ -268,8 +278,7 @@ namespace CatalogTestTool
 
                             //Populate PackageDependencies TABLE
                             foreach (var dependency in ListOfDependencies)
-                            {
-                                Console.WriteLine(dependency.Item2);
+                            {                               
                                 SqlCommand commandPackageDependencies = new SqlCommand("INSERT INTO PackageDependencies (PackageKey, Id, TargetFramework)" +
                                 "VALUES (@KEY,@DependencyId,@TF)", connection);
                                 commandPackageDependencies.Parameters.AddWithValue("@KEY", key);
