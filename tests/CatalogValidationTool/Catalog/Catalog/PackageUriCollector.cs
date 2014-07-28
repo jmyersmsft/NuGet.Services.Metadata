@@ -115,12 +115,8 @@ namespace CatalogTestTool
                     var version = item.Value<string>("nuget:version");
                     var key = Int32.Parse(item.Value<string>("galleryKey"));
                     Tuple<string, string> dictKey = new Tuple<string, string>(id, version);
-                    if (String.Equals(type, "nuget:Package", StringComparison.Ordinal))//add
-                    {
-                        DictionaryOfPackages.Add(dictKey, url);
-                    }
 
-                    else if (String.Equals(type, "nuget:PackageDeletion", StringComparison.Ordinal))//delete
+                    if (String.Equals(type, "nuget:PackageDeletion", StringComparison.Ordinal))//delete
                     {
                         if (DictionaryOfPackages.ContainsKey(dictKey))
                         {
@@ -131,9 +127,13 @@ namespace CatalogTestTool
 
                     else if (DictionaryOfPackages.ContainsKey(dictKey))//edit
                     {
-                        DictionaryOfPackages[dictKey] = url;
+                        DictionaryOfPackages.Remove(dictKey);
                     }
 
+                    if (String.Equals(type, "nuget:Package", StringComparison.Ordinal))//add
+                    {
+                        DictionaryOfPackages.Add(dictKey, url);
+                    }
                 }
             }
 

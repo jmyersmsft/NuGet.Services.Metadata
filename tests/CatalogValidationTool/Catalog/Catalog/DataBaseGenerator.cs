@@ -44,7 +44,7 @@ namespace CatalogTestTool
         {
             //multiple attempts to execute sql commands to avoid timeout
             const int RetryCount = 10;
-            cmd.CommandTimeout = 5 * 60;
+            cmd.CommandTimeout = 2 * 60;
             int tries = 0;
             do
             {
