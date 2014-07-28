@@ -20,14 +20,8 @@ namespace CatalogTestTool
         /// <param name="fileName"></param>
         public HTMLLogger()
         {
-            //string fileName=(@"C:\TEMP\JsonReport.txt");
             stringwriter = new StringWriter();
             htmlWriter = new HtmlTextWriter(stringwriter);
-            //if (File.Exists(fileName))
-            //    File.Delete(fileName);
-            //_streamWriter = new StreamWriter(fileName);
-
-
         }
 
 

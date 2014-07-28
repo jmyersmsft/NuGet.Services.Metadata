@@ -42,6 +42,7 @@ namespace CatalogTestTool
 
         public static void ExecuteNonQueryWithRetry(SqlCommand cmd)
         {
+            //multiple attempts to execute sql commands to avoid timeout
             const int RetryCount = 10;
             cmd.CommandTimeout = 5 * 60;
             int tries = 0;
@@ -78,24 +79,19 @@ namespace CatalogTestTool
                 return null;
             }
 
-            return tags.Replace(',', ' ').Replace(';', ' ').Replace('\t', ' ').Replace('[', ' ').Replace(']', ' ').Replace('"', ' ').Replace("  "," ").TrimEnd().TrimStart();//.Replace(" ", "");
+            return tags.Replace(',', ' ').Replace(';', ' ').Replace('\t', ' ').Replace('[', ' ').Replace(']', ' ').Replace('"', ' ').Replace("  "," ").TrimEnd().TrimStart();
         }
 
         public static bool PopulateDB()
-        {
-            using (StreamWriter writer = new StreamWriter(ConfigurationManager.AppSettings["PopulateDBTime"]))
-            {
+        {          
                 string uri = ConfigurationManager.AppSettings["CatalogAddress"];
                 Uri index = new Uri(uri+"index.json");
                 CollectorCursor last = DateTime.MinValue;
-
-                var collector = new PackageUriCollector(1000);
-                writer.WriteLine("Start Dictionary: " + DateTime.Now);
-                collector.Run(index, last).Wait();
-                writer.WriteLine("End Dictionary: " + DateTime.Now);
+                var collector = new PackageUriCollector(1000);                
+                collector.Run(index, last).Wait();              
                 int DBEntrycount = 0;
-
-                writer.WriteLine("Start DB: " + DateTime.Now);
+               
+                //Parallelize population of DB to speed up the process
                 Parallel.ForEach(collector.DictionaryOfPackages, new ParallelOptions { MaxDegreeOfParallelism = 8 }, p =>
                 {
                     string id = string.Empty;
@@ -150,8 +146,6 @@ namespace CatalogTestTool
                             string title = GetStringOrDefault(dataObj, "title");
                             string language = GetStringOrDefault(dataObj, "language");
                             long downloadCount = GetObjectOrDefault<long>(dataObj, "downloadCount");
-
-
 
                             List<Tuple<string, string>> ListOfDependencies = new List<Tuple<string, string>>();
                             JToken dependencies;
@@ -254,7 +248,6 @@ namespace CatalogTestTool
                             commandPackages.Parameters.AddWithValue("@dateTime", SqlDateTime.MinValue);
                             ExecuteNonQueryWithRetry(commandPackages);
 
-
                             //Populate PackageAuthors TABLE
                             foreach (var author in authorsList)
                             {
@@ -263,8 +256,8 @@ namespace CatalogTestTool
                                 commandPackageAuthors.Parameters.AddWithValue("@authors", author);
                                 commandPackageAuthors.Parameters.AddWithValue("@KEY", key);
                                 ExecuteNonQueryWithRetry(commandPackageAuthors);
-
                             }
+
                             //Populate PackageFrameworks TABLE
                             foreach (var targetframework in targetFrameworksList)
                             {
@@ -273,7 +266,6 @@ namespace CatalogTestTool
                                 commandPackageFrameworks.Parameters.AddWithValue("@TF", targetframework);
                                 commandPackageFrameworks.Parameters.AddWithValue("@KEY", key);
                                 ExecuteNonQueryWithRetry(commandPackageFrameworks);
-
                             }
 
                             //Populate PackageDependencies TABLE
@@ -298,10 +290,7 @@ namespace CatalogTestTool
                         throw new Exception(string.Format("{0} {1} {2}", key, id, version), e);
                     }
                 });
-
-                writer.WriteLine("End DB: " + DateTime.Now);
-            }
-
+                
             return true;
         }
     }

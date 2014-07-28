@@ -50,9 +50,10 @@ namespace CatalogTestTool
                 connection.Open();
                 string createDBString = "IF EXISTS (SELECT * FROM master.dbo.sysdatabases WHERE [name] = 'TestDB' ) ALTER DATABASE TestDB SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE TestDB; CREATE DATABASE TestDB;";
 
-                SqlCommand createDB = new SqlCommand(createDBString , connection);
-                createDB.Parameters.AddWithValue("@DBName",ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"]);
+                SqlCommand createDB = new SqlCommand(createDBString, connection);
+                createDB.Parameters.AddWithValue("@DBName", ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"]);
                 ExecuteNonQueryWithRetry(createDB);
+
                 //Run Scripts to create the tables in the miniDB
                 FileInfo PackageAuthors = new FileInfo("PackageAuthors.sql");
                 FileInfo Packages = new FileInfo("Packages.sql");
@@ -61,7 +62,6 @@ namespace CatalogTestTool
                 FileInfo PackageDependencies = new FileInfo("PackageDependencies.sql");
                 FileInfo PackageFramework = new FileInfo("PackageFramework.sql");
 
-
                 string PackageAuthorsScript = "USE " + ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"] + PackageAuthors.OpenText().ReadToEnd();
                 string PackagesScript = "USE " + ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"] + Packages.OpenText().ReadToEnd();
                 string PackageRegistrationsScript = "USE " + ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"] + PackageRegistrations.OpenText().ReadToEnd();
@@ -69,24 +69,20 @@ namespace CatalogTestTool
                 string PackageFrameworksScript = "USE " + ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"] + PackageFramework.OpenText().ReadToEnd();
 
                 SqlCommand packageAuthors = new SqlCommand(PackageAuthorsScript, connection);
+                packageAuthors.Parameters.AddWithValue("@DBName", ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"]);
                 SqlCommand packages = new SqlCommand(PackagesScript, connection);
+                packages.Parameters.AddWithValue("@DBName", ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"]);
                 SqlCommand packageRegistrations = new SqlCommand(PackageRegistrationsScript, connection);
+                packageRegistrations.Parameters.AddWithValue("@DBName", ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"]);
                 SqlCommand packageDependencies = new SqlCommand(PackageDependenciesScript, connection);
+                packageDependencies.Parameters.AddWithValue("@DBName", ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"]);
                 SqlCommand packageFrameworks = new SqlCommand(PackageFrameworksScript, connection);
-
+                packageFrameworks.Parameters.AddWithValue("@DBName", ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"]);
                 ExecuteNonQueryWithRetry(packageRegistrations);
                 ExecuteNonQueryWithRetry(packages);
                 ExecuteNonQueryWithRetry(packageAuthors);
                 ExecuteNonQueryWithRetry(packageDependencies);
                 ExecuteNonQueryWithRetry(packageFrameworks);
-
-                //Server server = new Server(new ServerConnection(connection));
-                //server.ConnectionContext.ExecuteNonQuery(PackageRegistrationsScript);
-                //server.ConnectionContext.ExecuteNonQuery(PackagesScript);
-                //server.ConnectionContext.ExecuteNonQuery(PackageDependenciesScript);
-                //server.ConnectionContext.ExecuteNonQuery(PackageFrameworksScript);
-                //server.ConnectionContext.ExecuteNonQuery(PackageAuthorsScript);
-
 
                 connection.Close();
             }
@@ -100,10 +96,6 @@ namespace CatalogTestTool
             {
                 Console.WriteLine(e.Message);
             }
-
-
         }
-
-
     }
 }

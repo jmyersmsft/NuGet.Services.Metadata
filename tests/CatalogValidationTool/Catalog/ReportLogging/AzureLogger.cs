@@ -11,8 +11,7 @@ namespace CatalogTestTool
 {
     // TODO: Connect to Azure logger and put the logging report on it, instead of on disc
     public class AzureLogger : ILogger
-    {
-        
+    {      
         public Dictionary<string, List<string>> ReportDictionary = new Dictionary<string, List<string>>();
         /*Input: id,version and error messages about the current package; writer which is the report   
         Calls Serialize method which serializes the reporting objects into JSON*/
@@ -21,11 +20,8 @@ namespace CatalogTestTool
             if (errorsFound)
             {
                 ReportObject reportObject = new ReportObject(id, version, errorMessages);
-                Serialize(reportObject, writer);
-                
-            }
-
-            
+                Serialize(reportObject, writer);                
+            }          
         }
 
         /*Input: reporting object and the report
@@ -42,6 +38,7 @@ namespace CatalogTestTool
             stream.Close();
         }
 
+        /*Called by DBComparer after ReportDictionary is populated with errors and id,version of the packages with errors */
         public void HtmlRender(int packageCount, StreamWriter totalTimeForRun)
         {
             int errors = ReportDictionary.Count;

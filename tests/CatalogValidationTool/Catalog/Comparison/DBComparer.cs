@@ -69,12 +69,12 @@ namespace CatalogTestTool
             int packageCount = 0;
             using (StreamWriter writer = new StreamWriter(ConfigurationManager.AppSettings["JsonReport"]))//Where the report is logged
             {
-                
+
                 writer.WriteLine("Time started: " + DateTime.Now);
                 foreach (KeyValuePair<int, Packages> entry in miniDB)
                 {
                     List<string> errorMessages = new List<string>();
-                    packageCount++;                   
+                    packageCount++;
                     Packages valueSource;
                     if (source.TryGetValue(entry.Key, out valueSource))//find corresponding key in the source DB
                     {
@@ -107,34 +107,25 @@ namespace CatalogTestTool
                         }
                     }
 
-                    else
+                    else//if key in miniDB not in source- catalog has entry not in source
                     {
                         errorMessages.Add("Package found in MiniDB and not in source");
                         azurelog.LogPackage(entry.Value.registration.id, entry.Value.version.ToString(), true, errorMessages, writer);
                         azurelog.ReportDictionary.Add(entry.Value.registration.id + " " + entry.Value.version, errorMessages);
-                    }                 
+                    }
                 }
 
-                foreach (KeyValuePair<int,Packages> entry in source)
+                foreach (KeyValuePair<int, Packages> entry in source)//checks if package in source is missing from catalog/miniDB
                 {
                     List<string> errorMessages = new List<string>();
-
-                    if (entry.Value.registration.id=="owin")
+                    Packages valueMiniDB = null;
+                    if (!(miniDB.TryGetValue(entry.Key, out valueMiniDB)))
                     {
-                        Console.WriteLine("Here");
-                    }
-
-                    Packages valueMiniDB=null;
-                    if (!(miniDB.TryGetValue(entry.Key,out valueMiniDB)))
-                    {
-                       
-                            errorMessages.Add("Package found in source and not in MiniDB");
-                            azurelog.LogPackage(entry.Value.registration.id, entry.Value.version.ToString(), true, errorMessages, writer);
-                            azurelog.ReportDictionary.Add(entry.Value.registration.id + " " + entry.Value.version, errorMessages);
-                        
+                        errorMessages.Add("Package found in source and not in MiniDB");
+                        azurelog.LogPackage(entry.Value.registration.id, entry.Value.version.ToString(), true, errorMessages, writer);
+                        azurelog.ReportDictionary.Add(entry.Value.registration.id + " " + entry.Value.version, errorMessages);
                     }
                 }
-
 
                 azurelog.HtmlRender(packageCount, totalTimeForRun);
                 writer.WriteLine("Time ended: " + DateTime.Now);
@@ -147,6 +138,7 @@ namespace CatalogTestTool
 
         public static int SafeGetInt(SqlDataReader reader, string property)
         {
+            //helper method to get key if it exists for the different tables
             int colIndex = reader.GetOrdinal(property);
             if (!reader.IsDBNull(colIndex))
                 return reader.GetInt32(colIndex);
@@ -157,8 +149,6 @@ namespace CatalogTestTool
         public static Dictionary<int, Packages> GetPackageDictionary(string connectionString, string SQLQuery, string keyDB)
         {
             /*Runs the sql script and retrieves the relevant columns and adds to the dictionary*/
-
-
             using (SqlConnection connection = new SqlConnection(connectionString))
             {
                 connection.Open();
@@ -174,11 +164,12 @@ namespace CatalogTestTool
                     {
                         Packages package = new Packages();
 
+                        //PackageRegistrations table
                         package.registration.id = reader["Id"].ToString().ToLower();
                         string downloadCount = reader["DownloadCount"].ToString();
                         package.registration.downloadCount = Convert.ToInt32(downloadCount);
 
-
+                        //Packages table
                         int key = SafeGetInt(reader, keyDB);
                         package.packageKey = Convert.ToInt32(key);
                         package.description = reader["Description"].ToString();
@@ -190,32 +181,31 @@ namespace CatalogTestTool
                         package.isPrerelease = Boolean.Parse(reader["IsPrerelease"].ToString());
                         package.requiresLicenseAcceptance = Boolean.Parse(reader["RequiresLicenseAcceptance"].ToString());
                         package.language = reader["Language"].ToString();
-                        package.tags = reader["Tags"].ToString().TrimStart(' ').TrimEnd(' ').ToLower().Replace("\r\n", "").Replace("\\","").Replace('"', ' ').Replace(" ", "");
+                        package.tags = reader["Tags"].ToString().TrimStart(' ').TrimEnd(' ').ToLower().Replace("\r\n", "").Replace("\\", "").Replace('"', ' ').Replace(" ", "");
                         package.created = DateTime.Parse(reader["Created"].ToString());
                         package.published = DateTime.Parse(reader["Published"].ToString());
                         package.projectUrl = reader["ProjectUrl"].ToString();
                         package.licenseUrl = reader["LicenseUrl"].ToString();
 
+                        //PackageAuthors table
                         var packageAuthorsKey = SafeGetInt(reader, "PackageKey");
                         package.authors.packageKey = Convert.ToInt32(packageAuthorsKey);
                         string author = reader["Name"].ToString().TrimStart(' ').TrimEnd(' ');
 
-
+                        //PackageFrameworks table
                         var packageFrameworksKey = SafeGetInt(reader, "packageKey");
                         package.frameworks.packageKey = Convert.ToInt32(packageFrameworksKey);
                         string targetFramework = reader["TargetFramework"].ToString().ToLower();
 
+                        //PackageDependencies table
                         var packageDependenciesKey = SafeGetInt(reader, "PackageKey");
                         package.dependencies.packageKey = Convert.ToInt32(packageDependenciesKey);
-
                         string dependencyId = reader["dependencyId"].ToString().ToLower();
                         string dependencyFramework = reader["dependencyFramework"].ToString().ToLower();
 
+                        //create dictionary entry
                         int dictionaryKey = 0;
-
                         dictionaryKey = SafeGetInt(reader, keyDB);
-
-
                         Packages dictionaryValue = package;
 
                         if (packageInfoList.ContainsKey(dictionaryKey))
@@ -244,18 +234,10 @@ namespace CatalogTestTool
             }
         }
 
-
-
         public bool Equals(Packages sourcePackage, Packages miniDBpackage, out string message)
         {
             //Checks if the metadata about each package was copied to the catalog correctly
-            message = string.Empty;
-            if (sourcePackage.packageKey != miniDBpackage.packageKey)
-            {
-                message += "packageKeys do not match; Table: Packages. ";
-
-            }
-
+            message = string.Empty;         
             if (sourcePackage.description.Trim() != miniDBpackage.description.Trim())
             {
                 message += "descriptions do not match; Table: Packages. ";
@@ -266,11 +248,9 @@ namespace CatalogTestTool
                 message += "titles do not match; Table: Packages. ";
             }
 
-            if (sourcePackage.version+".0"!=miniDBpackage.version && sourcePackage.version != miniDBpackage.version && miniDBpackage.version+".0"!=sourcePackage.version)
+            if (sourcePackage.version + ".0" != miniDBpackage.version && sourcePackage.version != miniDBpackage.version && miniDBpackage.version + ".0" != sourcePackage.version)
             {
                 message += "versions do not match; Table: Packages. ";
-
-               
             }
 
             if (sourcePackage.summary != miniDBpackage.summary)
@@ -301,7 +281,6 @@ namespace CatalogTestTool
             if (sourcePackage.licenseUrl != miniDBpackage.licenseUrl)
             {
                 message += "licenseUrl does not match; Table: Packages. ";
-
             }
 
             if (sourcePackage.isLatest != miniDBpackage.isLatest)
@@ -323,19 +302,13 @@ namespace CatalogTestTool
             {
                 message += "published does not match; Table: Packages. ";
             }
-
-            //if (sourcePackage.requiresLicenseAcceptance != miniDBpackage.requiresLicenseAcceptance)
-            //{
-            //    message += "requiresLicenseAcceptance does not match; Table: Packages. ";
-
-            //}
-
+      
             if (sourcePackage.isPrerelease != miniDBpackage.isPrerelease)
             {
                 message += "isPrerelease does not match; Table: Packages. ";
             }
 
-            else if (message==string.Empty)
+            else if (message == string.Empty)
             {
                 message = "No error; Table: Packages.";
                 return false;
@@ -413,13 +386,7 @@ namespace CatalogTestTool
         public bool Equals(PackageAuthors sourcePackage, PackageAuthors miniDBpackage, out string message)
         {
             //Checks if the authors of each package were copied correctly to the catalog
-            message = string.Empty;
-
-            //foreach (string author in sourcePackage.authorsList)
-            //{
-            //    author=author.TrimStart(' ').TrimEnd(' ').ToLower();
-            //}
-
+            message = string.Empty;        
             if (sourcePackage.packageKey != miniDBpackage.packageKey)
             {
                 message += "packageKeys do not match; Table: PackageAuthors. ";
@@ -443,7 +410,5 @@ namespace CatalogTestTool
 
             return true;
         }
-
-
     }
 }
