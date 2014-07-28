@@ -69,12 +69,12 @@ namespace CatalogTestTool
             int packageCount = 0;
             using (StreamWriter writer = new StreamWriter(ConfigurationManager.AppSettings["JsonReport"]))//Where the report is logged
             {
-
+                
                 writer.WriteLine("Time started: " + DateTime.Now);
                 foreach (KeyValuePair<int, Packages> entry in miniDB)
                 {
-                    packageCount++;
                     List<string> errorMessages = new List<string>();
+                    packageCount++;                   
                     Packages valueSource;
                     if (source.TryGetValue(entry.Key, out valueSource))//find corresponding key in the source DB
                     {
@@ -105,9 +105,6 @@ namespace CatalogTestTool
                             azurelog.ReportDictionary.Add(valueSource.registration.id + " " + valueSource.version, errorMessages);
                             azurelog.LogPackage(valueSource.registration.id, valueSource.version.ToString(), true, errorMessages, writer);//Call to the method to log the status of the package 
                         }
-
-
-
                     }
 
                     else
@@ -115,6 +112,26 @@ namespace CatalogTestTool
                         errorMessages.Add("Package found in MiniDB and not in source");
                         azurelog.LogPackage(entry.Value.registration.id, entry.Value.version.ToString(), true, errorMessages, writer);
                         azurelog.ReportDictionary.Add(entry.Value.registration.id + " " + entry.Value.version, errorMessages);
+                    }                 
+                }
+
+                foreach (KeyValuePair<int,Packages> entry in source)
+                {
+                    List<string> errorMessages = new List<string>();
+
+                    if (entry.Value.registration.id=="owin")
+                    {
+                        Console.WriteLine("Here");
+                    }
+
+                    Packages valueMiniDB=null;
+                    if (!(miniDB.TryGetValue(entry.Key,out valueMiniDB)))
+                    {
+                       
+                            errorMessages.Add("Package found in source and not in MiniDB");
+                            azurelog.LogPackage(entry.Value.registration.id, entry.Value.version.ToString(), true, errorMessages, writer);
+                            azurelog.ReportDictionary.Add(entry.Value.registration.id + " " + entry.Value.version, errorMessages);
+                        
                     }
                 }
 
