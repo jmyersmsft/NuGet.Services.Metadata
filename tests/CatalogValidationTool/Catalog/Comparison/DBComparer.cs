@@ -181,7 +181,7 @@ namespace CatalogTestTool
                         package.isPrerelease = Boolean.Parse(reader["IsPrerelease"].ToString());
                         package.requiresLicenseAcceptance = Boolean.Parse(reader["RequiresLicenseAcceptance"].ToString());
                         package.language = reader["Language"].ToString();
-                        package.tags = reader["Tags"].ToString().TrimStart(' ').TrimEnd(' ').ToLower().Replace("\r\n", "").Replace("\\", "").Replace('"', ' ').Replace(" ", "");
+                        package.tags = reader["Tags"].ToString().TrimStart(' ').TrimEnd(' ').ToLower().Replace(';',' ').Replace("\r\n", "").Replace("\\", "").Replace('"', ' ').Replace(" ", "");
                         package.created = DateTime.Parse(reader["Created"].ToString());
                         package.published = DateTime.Parse(reader["Published"].ToString());
                         package.projectUrl = reader["ProjectUrl"].ToString();

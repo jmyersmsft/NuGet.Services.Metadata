@@ -66,7 +66,7 @@
     </Reference>
     <Reference Include="NuGet.Services.Metadata.Catalog, Version=3.9999.9999.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\..\src\Catalog\bin\Debug\NuGet.Services.Metadata.Catalog.dll</HintPath>
+      <HintPath>..\..\..\GitHub\NuGet.Services.Metadata\src\Catalog\bin\Debug\NuGet.Services.Metadata.Catalog.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Configuration" />
