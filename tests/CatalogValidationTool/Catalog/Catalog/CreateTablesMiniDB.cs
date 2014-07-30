@@ -48,7 +48,7 @@ namespace CatalogTestTool
 
                 SqlConnection connection = new SqlConnection(sqlConnectionString);
                 connection.Open();
-                string createDBString = "IF EXISTS (SELECT * FROM master.dbo.sysdatabases WHERE [name] = 'TestDB' ) ALTER DATABASE TestDB SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE TestDB; CREATE DATABASE TestDB;";
+                string createDBString = String.Format("IF EXISTS (SELECT * FROM master.dbo.sysdatabases WHERE [name] = '{0}' ) ALTER DATABASE {0} SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE {0}; CREATE DATABASE {0};",ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"]);
 
                 SqlCommand createDB = new SqlCommand(createDBString, connection);
                 createDB.Parameters.AddWithValue("@DBName", ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"]);

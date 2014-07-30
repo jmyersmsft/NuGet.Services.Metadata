@@ -10,15 +10,15 @@ namespace CatalogTestTool
 {
     public class Program
     {
-        public static StreamWriter totalTimeForRun = new StreamWriter(ConfigurationManager.AppSettings["totalTime"]);
+        public static StreamWriter totalTimeForRun = new StreamWriter(Path.Combine(Environment.CurrentDirectory,"totalTime.txt"));
         static void Main()
         {
             try
             {
-                bool createMiniDB = Boolean.Parse(ConfigurationManager.AppSettings["BoolCreateMiniDB"]);
-                bool createCatalog = Boolean.Parse(ConfigurationManager.AppSettings["BoolWriteCatalog"]);
-                bool populateMiniDB = Boolean.Parse(ConfigurationManager.AppSettings["BoolPopulateMiniDB"]);
-                bool compareSourceToMiniDB = Boolean.Parse(ConfigurationManager.AppSettings["BoolCompare"]);
+                bool createMiniDB = Boolean.Parse(ConfigurationManager.AppSettings["CreateMiniDB"]);
+                bool createCatalog = Boolean.Parse(ConfigurationManager.AppSettings["WriteCatalog"]);
+                bool populateMiniDB = Boolean.Parse(ConfigurationManager.AppSettings["PopulateMiniDB"]);
+                bool compareSourceToMiniDB = Boolean.Parse(ConfigurationManager.AppSettings["Compare"]);
                 TasksList(createMiniDB, createCatalog, populateMiniDB, compareSourceToMiniDB);
             }
 
@@ -57,7 +57,7 @@ namespace CatalogTestTool
             string baseAddress = ConfigurationManager.AppSettings["CatalogAddress"];
             totalTimeForRun.WriteLine(DateTime.Now);
 
-            using (StreamWriter writer = new StreamWriter(ConfigurationManager.AppSettings["Time"]))
+            using (StreamWriter writer = new StreamWriter(Path.Combine(Environment.CurrentDirectory,"Time.txt")))
             {
                 if (createMiniDB)
                 {
@@ -88,15 +88,10 @@ namespace CatalogTestTool
                     DBComparer dbComparer = new DBComparer();
                     int packageCount = dbComparer.ValidateDataIntegrity(connectionStringSource, connectionStringMiniDB, totalTimeForRun);//Compare miniDB and source DB- check for data integrity
                     writer.WriteLine("End Comparison: " + DateTime.Now);                   
-                    Console.WriteLine(@"Please find the JSON report in C:\TEMP");
-
-
-                }
-
-                
-            }
-
-            
+                    Console.WriteLine("COMPARISON COMPLETE.");
+                    Console.WriteLine("Please find the report in the specified directory");
+                }                
+            }            
         }
     }
 }

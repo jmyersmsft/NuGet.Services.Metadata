@@ -142,7 +142,7 @@ namespace CatalogTestTool
                 throw;
             }
 
-            using (StreamWriter packages = new StreamWriter(ConfigurationManager.AppSettings["PackagesFromCollector"]))
+            using (StreamWriter packages = new StreamWriter(Path.Combine(Environment.CurrentDirectory,"PackagesFromCollector.txt")))
             {
                 foreach (KeyValuePair<Tuple<string, string>, string> package in DictionaryOfPackages)
                 {

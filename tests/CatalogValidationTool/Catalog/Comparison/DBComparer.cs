@@ -22,7 +22,7 @@ namespace CatalogTestTool
             string SQLQuerySource = @"
                SELECT PackageRegistrations.[Id],PackageRegistrations.[DownloadCount],
                     Packages.[Key],Packages.Description,Packages.IconUrl,Packages.LicenseUrl,Packages.ProjectUrl,
-                    Packages.Summary, Packages.Tags, Packages.Title, Packages.Version, Packages.ReleaseNotes, Packages.Language,
+                    Packages.Summary, Packages.Tags, Packages.Title, Packages.NormalizedVersion, Packages.ReleaseNotes, Packages.Language,
                     Packages.IsLatest,Packages.IsLatestStable,Packages.IsPrerelease,Packages.RequiresLicenseAcceptance,
                     Packages.Created,Packages.Published,
                     PackageAuthors.PackageKey,PackageAuthors.Name,
@@ -36,11 +36,12 @@ namespace CatalogTestTool
 				LEFT OUTER JOIN PackageAuthors ON Packages.[Key]=PackageAuthors.[PackageKey]            
 				LEFT OUTER JOIN PackageFrameworks ON Packages.[Key] = PackageFrameworks.[Package_Key]
                 ";
-
+            
+            //GalleryKey in MiniDB is the same as the Key from source
             string SQLQueryMiniDB = @"
                SELECT PackageRegistrations.[Id],PackageRegistrations.[DownloadCount],
                     Packages.[GalleryKey],Packages.Description,Packages.IconUrl,Packages.LicenseUrl,Packages.ProjectUrl,
-                    Packages.Summary, Packages.Tags, Packages.Title, Packages.Version, Packages.ReleaseNotes, Packages.Language,
+                    Packages.Summary, Packages.Tags, Packages.Title, Packages.NormalizedVersion, Packages.ReleaseNotes, Packages.Language,
                     Packages.IsLatest,Packages.IsLatestStable,Packages.IsPrerelease,Packages.RequiresLicenseAcceptance,
                     Packages.Created,Packages.Published,
                     PackageAuthors.PackageKey,PackageAuthors.Name,
@@ -54,6 +55,7 @@ namespace CatalogTestTool
 				LEFT OUTER JOIN PackageAuthors ON Packages.[GalleryKey]=PackageAuthors.[PackageKey]            
 				LEFT OUTER JOIN PackageFrameworks ON Packages.[GalleryKey] = PackageFrameworks.[Package_Key]
                 ";
+
             Dictionary<int, Packages> sourceDictionary = GetPackageDictionary(connectionStringSource, SQLQuerySource, "Key");
             Dictionary<int, Packages> miniDBDictionary = GetPackageDictionary(connectionStringMiniDB, SQLQueryMiniDB, "GalleryKey");
             int packageCount = Compare(sourceDictionary, miniDBDictionary, totalTimeForRun);
@@ -69,7 +71,6 @@ namespace CatalogTestTool
             int packageCount = 0;
             using (StreamWriter writer = new StreamWriter(ConfigurationManager.AppSettings["JsonReport"]))//Where the report is logged
             {
-
                 writer.WriteLine("Time started: " + DateTime.Now);
                 foreach (KeyValuePair<int, Packages> entry in miniDB)
                 {
@@ -78,11 +79,11 @@ namespace CatalogTestTool
                     Packages valueSource;
                     if (source.TryGetValue(entry.Key, out valueSource))//find corresponding key in the source DB
                     {
-                        string messageRegistrations = "";
-                        string messagePackages = "";
-                        string messageFrameworks = "";
-                        string messageDependencies = "";
-                        string messageAuthors = "";
+                        string messageRegistrations = string.Empty;
+                        string messagePackages = string.Empty;
+                        string messageFrameworks = string.Empty;
+                        string messageDependencies = string.Empty;
+                        string messageAuthors = string.Empty;
 
                         bool registration = Equals(valueSource.registration, entry.Value.registration, out messageRegistrations);
                         bool packages = Equals(valueSource, entry.Value, out messagePackages);
@@ -90,7 +91,7 @@ namespace CatalogTestTool
                         bool dependencies = Equals(valueSource.dependencies, entry.Value.dependencies, out messageDependencies);
                         bool authors = Equals(valueSource.authors, entry.Value.authors, out messageAuthors);
 
-                        if ((!registration) && (!packages) && (!frameworks) && (!dependencies) && (!authors))
+                        if ((!registration) && (!packages) && (!frameworks) && (!dependencies) && (!authors))//no errors
                         {
                             errorMessages.Add("No errors");
                         }
@@ -110,8 +111,14 @@ namespace CatalogTestTool
                     else//if key in miniDB not in source- catalog has entry not in source
                     {
                         errorMessages.Add("Package found in MiniDB and not in source");
-                        azurelog.LogPackage(entry.Value.registration.id, entry.Value.version.ToString(), true, errorMessages, writer);
-                        azurelog.ReportDictionary.Add(entry.Value.registration.id + " " + entry.Value.version, errorMessages);
+                        if (azurelog.ReportDictionary.ContainsKey(entry.Value.registration.id + " " + entry.Value.version))
+                        {
+                            azurelog.ReportDictionary[entry.Value.registration.id + " " + entry.Value.version] = errorMessages;                           
+                        }
+
+                        else azurelog.ReportDictionary.Add(entry.Value.registration.id + " " + entry.Value.version, errorMessages);
+                        azurelog.LogPackage(entry.Value.registration.id, entry.Value.version.ToString(), true, errorMessages, writer);                       
+                        
                     }
                 }
 
@@ -122,8 +129,13 @@ namespace CatalogTestTool
                     if (!(miniDB.TryGetValue(entry.Key, out valueMiniDB)))
                     {
                         errorMessages.Add("Package found in source and not in MiniDB");
-                        azurelog.LogPackage(entry.Value.registration.id, entry.Value.version.ToString(), true, errorMessages, writer);
-                        azurelog.ReportDictionary.Add(entry.Value.registration.id + " " + entry.Value.version, errorMessages);
+                        if (azurelog.ReportDictionary.ContainsKey(entry.Value.registration.id + " " + entry.Value.version))
+                        {
+                            azurelog.ReportDictionary[entry.Value.registration.id + " " + entry.Value.version] = errorMessages;
+                        }
+
+                        else azurelog.ReportDictionary.Add(entry.Value.registration.id + " " + entry.Value.version, errorMessages);
+                        azurelog.LogPackage(entry.Value.registration.id, entry.Value.version.ToString(), true, errorMessages, writer);    
                     }
                 }
 
@@ -174,14 +186,14 @@ namespace CatalogTestTool
                         package.packageKey = Convert.ToInt32(key);
                         package.description = reader["Description"].ToString();
                         package.title = reader["Title"].ToString().ToLower();
-                        package.version = reader["Version"].ToString();
+                        package.version = reader["NormalizedVersion"].ToString();
                         package.summary = reader["Summary"].ToString();
                         package.isLatest = Boolean.Parse(reader["IsLatest"].ToString());
                         package.isLatestStable = Boolean.Parse(reader["IsLatestStable"].ToString());
                         package.isPrerelease = Boolean.Parse(reader["IsPrerelease"].ToString());
                         package.requiresLicenseAcceptance = Boolean.Parse(reader["RequiresLicenseAcceptance"].ToString());
                         package.language = reader["Language"].ToString();
-                        package.tags = reader["Tags"].ToString().TrimStart(' ').TrimEnd(' ').ToLower().Replace(';',' ').Replace("\r\n", "").Replace("\\", "").Replace('"', ' ').Replace(" ", "");
+                        package.tags = reader["Tags"].ToString().TrimStart(' ').TrimEnd(' ').ToLower().Replace("\r\n", "").Replace(" ", "");
                         package.created = DateTime.Parse(reader["Created"].ToString());
                         package.published = DateTime.Parse(reader["Published"].ToString());
                         package.projectUrl = reader["ProjectUrl"].ToString();
@@ -237,75 +249,75 @@ namespace CatalogTestTool
         public bool Equals(Packages sourcePackage, Packages miniDBpackage, out string message)
         {
             //Checks if the metadata about each package was copied to the catalog correctly
-            message = string.Empty;         
+            message = string.Empty;
             if (sourcePackage.description.Trim() != miniDBpackage.description.Trim())
             {
-                message += "descriptions do not match; Table: Packages. ";
+                message += string.Format("descriptions do not match; Source: {0} MiniDB: {1} Table: Packages. ", sourcePackage.description, miniDBpackage.description);
             }
 
             if (sourcePackage.title != miniDBpackage.title)
             {
-                message += "titles do not match; Table: Packages. ";
+                message += string.Format("titles do not match;  Source: {0} MiniDB: {1} Table: Packages. ", sourcePackage.title, miniDBpackage.title);
             }
 
-            if (sourcePackage.version + ".0" != miniDBpackage.version && sourcePackage.version != miniDBpackage.version && miniDBpackage.version + ".0" != sourcePackage.version)
+            if (sourcePackage.version != miniDBpackage.version)
             {
-                message += "versions do not match; Table: Packages. ";
+                message += string.Format("versions do not match;  Source: {0} MiniDB: {1} Table: Packages. ", sourcePackage.version, miniDBpackage.version);
             }
 
             if (sourcePackage.summary != miniDBpackage.summary)
             {
-                message += "summaries do not match; Table: Packages. ";
+                message += string.Format("summaries do not match;  Source: {0} MiniDB: {1} Table: Packages. ", sourcePackage.summary, miniDBpackage.summary);
             }
 
             if (sourcePackage.releaseNotes != miniDBpackage.releaseNotes)
             {
-                message += "release notes do not match; Table: Packages. ";
+                message += string.Format("release notes do not match;  Source: {0} MiniDB: {1} Table: Packages. ", sourcePackage.releaseNotes, miniDBpackage.releaseNotes);
             }
 
             if (sourcePackage.language != miniDBpackage.language)
             {
-                message += "language does not match; Table: Packages. ";
+                message += string.Format("language does not match;  Source: {0} MiniDB: {1} Table: Packages. ", sourcePackage.language, miniDBpackage.language);
             }
 
             if (sourcePackage.tags != miniDBpackage.tags)
             {
-                message += "tags do not match; Table: Packages. ";
+                message += string.Format("tags do not match;  Source: {0} MiniDB: {1} Table: Packages. ", sourcePackage.tags, miniDBpackage.tags);
             }
 
             if (sourcePackage.projectUrl != miniDBpackage.projectUrl)
             {
-                message += "projectUrl does not match; Table: Packages. ";
+                message += string.Format("projectUrl does not match;  Source: {0} MiniDB: {1} Table: Packages. ", sourcePackage.projectUrl, miniDBpackage.projectUrl);
             }
 
             if (sourcePackage.licenseUrl != miniDBpackage.licenseUrl)
             {
-                message += "licenseUrl does not match; Table: Packages. ";
+                message += string.Format("licenseUrl does not match;  Source: {0} MiniDB: {1} Table: Packages. ", sourcePackage.licenseUrl, miniDBpackage.licenseUrl);
             }
 
             if (sourcePackage.isLatest != miniDBpackage.isLatest)
             {
-                message += "isLatest does not match; Table: Packages. ";
+                message += string.Format("isLatest does not match;  Source: {0} MiniDB: {1} Table: Packages. ", sourcePackage.isLatest, miniDBpackage.isLatest);
             }
 
             if (sourcePackage.isLatestStable != miniDBpackage.isLatestStable)
             {
-                message += "isLatestStable does not match; Table: Packages. ";
+                message += string.Format("isLatestStable does not match;  Source: {0} MiniDB: {1} Table: Packages. ", sourcePackage.isLatestStable, miniDBpackage.isLatestStable);
             }
 
             if (sourcePackage.created != miniDBpackage.created)
             {
-                message += "created does not match; Table: Packages. ";
+                message += string.Format("created does not match;  Source: {0} MiniDB: {1} Table: Packages. ", sourcePackage.created, miniDBpackage.created);
             }
 
             if (sourcePackage.published != miniDBpackage.published)
             {
-                message += "published does not match; Table: Packages. ";
+                message += string.Format("published does not match;  Source: {0} MiniDB: {1} Table: Packages. ", sourcePackage.published, miniDBpackage.published);
             }
-      
+
             if (sourcePackage.isPrerelease != miniDBpackage.isPrerelease)
             {
-                message += "isPrerelease does not match; Table: Packages. ";
+                message += string.Format("isPrerelease does not match;  Source: {0} MiniDB: {1} Table: Packages. ", sourcePackage.isPrerelease, miniDBpackage.isPrerelease);
             }
 
             else if (message == string.Empty)
@@ -323,7 +335,12 @@ namespace CatalogTestTool
             message = string.Empty;
             if (sourcePackage.id != miniDBpackage.id)
             {
-                message = "Ids do not match; Table: PackageRegistrations.";
+                message = string.Format("Ids do not match; Source: {0} MiniDB: {1} Table: PackageRegistrations.", sourcePackage.id, miniDBpackage.id);
+            }
+
+            if (sourcePackage.downloadCount != miniDBpackage.downloadCount)
+            {
+                message = string.Format("DownloadCounts do not match; Source: {0} MiniDB: {1} Table: PackageRegistrations.", sourcePackage.downloadCount, miniDBpackage.downloadCount);
             }
 
             else if (message == string.Empty)
@@ -343,7 +360,15 @@ namespace CatalogTestTool
             {
                 if (!miniDBpackage.frameworksList.Contains(framework))
                 {
-                    message += "TargetFrameworks do not match; Table: PackageFrameworks. ";
+                    message += string.Format("TargetFrameworks do not match; Source has this framework: {0} but MiniDB does not. Table: PackageFrameworks. ", framework);
+                }
+            }
+
+            foreach (string framework in miniDBpackage.frameworksList)
+            {
+                if (!sourcePackage.frameworksList.Contains(framework))
+                {
+                    message += string.Format("TargetFrameworks do not match; MiniDB has this framework: {0} but Source does not. Table: PackageFrameworks. ", framework);
                 }
             }
 
@@ -363,14 +388,22 @@ namespace CatalogTestTool
 
             if (sourcePackage.packageKey != miniDBpackage.packageKey)
             {
-                message += "packageKeys do not match; Table: PackageDependencies. ";
+                message += string.Format("PackageKeys do not match; Source: {0} MiniDB: {1} Table: PackageDependencies. ", sourcePackage.packageKey, miniDBpackage.packageKey);
             }
 
             foreach (Tuple<string, string> dependency in miniDBpackage.dependenciesList)
             {
                 if (!sourcePackage.dependenciesList.Contains(dependency))
                 {
-                    message = "Dependency Ids do not match; Table: PackageDependencies. ";
+                    message = string.Format("Dependency Ids do not match; MiniDB has this dependency: id: {0}, framework: {1} but Source does not. Table: PackageDependencies. ", dependency.Item1, dependency.Item2);
+                }
+            }
+
+            foreach (Tuple<string, string> dependency in sourcePackage.dependenciesList)
+            {
+                if (!miniDBpackage.dependenciesList.Contains(dependency))
+                {
+                    message = string.Format("Dependency Ids do not match; Source has this dependency: id: {0}, framework: {1} but MiniDB does not. Table: PackageDependencies. ", dependency.Item1, dependency.Item2);
                 }
             }
 
@@ -386,19 +419,25 @@ namespace CatalogTestTool
         public bool Equals(PackageAuthors sourcePackage, PackageAuthors miniDBpackage, out string message)
         {
             //Checks if the authors of each package were copied correctly to the catalog
-            message = string.Empty;        
+            message = string.Empty;
             if (sourcePackage.packageKey != miniDBpackage.packageKey)
             {
-                message += "packageKeys do not match; Table: PackageAuthors. ";
+                message += string.Format("PackageKeys do not match; Source: {0} MiniDB: {1} Table: PackageAuthors. ", sourcePackage.packageKey, miniDBpackage.packageKey);
             }
 
             foreach (string author in miniDBpackage.authorsList)
             {
                 if (!sourcePackage.authorsList.Contains(author))
                 {
+                    message = string.Format("Name does not match; MiniDB has this author: {0} but Source does not. Table: PackageAuthors. ", author);
+                }
+            }
 
-                    message = "Name does not match; Table: PackageAuthors. ";
-
+            foreach (string author in sourcePackage.authorsList)
+            {
+                if (!miniDBpackage.authorsList.Contains(author))
+                {
+                    message = string.Format("Name does not match; Source has this author: {0} but MiniDB does not. Table: PackageAuthors. ", author);
                 }
             }
 

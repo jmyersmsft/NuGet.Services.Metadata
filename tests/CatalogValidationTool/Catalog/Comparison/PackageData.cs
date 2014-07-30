@@ -57,9 +57,7 @@ namespace CatalogTestTool
     public class PackageDependencies
     {
         public long packageKey;
-        public List<Tuple<string, string>> dependenciesList=new List<Tuple<string,string>>();//list of dependencies of the package
-        public string id;
-        public string targetFramework;
+        public List<Tuple<string, string>> dependenciesList=new List<Tuple<string,string>>();//list of dependencies of the package, <id,framework>
     }
 
 

@@ -44,7 +44,7 @@ namespace CatalogTestTool
             int errors = ReportDictionary.Count;
             totalTimeForRun.WriteLine(DateTime.Now);
             totalTimeForRun.Close();
-            StreamReader reader = new StreamReader(ConfigurationManager.AppSettings["totalTime"]);
+            StreamReader reader = new StreamReader(Path.Combine(Environment.CurrentDirectory, "totalTime.txt"));
             DateTime start = Convert.ToDateTime(reader.ReadLine());
             DateTime end = Convert.ToDateTime(reader.ReadLine());
             StringBuilder resultOverview = new StringBuilder();

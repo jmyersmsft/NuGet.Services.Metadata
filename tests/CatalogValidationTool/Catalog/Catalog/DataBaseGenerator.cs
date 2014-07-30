@@ -168,16 +168,12 @@ namespace CatalogTestTool
 
                                     foreach (JToken dependency in group["dependency"])
                                     {
-                                        string dependencyId = "";
-
+                                        string dependencyId = string.Empty;
                                         dependencyId = dependency["id"].ToString();
-
-
                                         ListOfDependencies.Add(new Tuple<string, string>(targetFrameworkOfDependencies, dependencyId));
                                     }
                                 }
                             }
-
 
                             JToken targetFramework;
                             List<string> targetFrameworksList = new List<string>();
@@ -191,7 +187,7 @@ namespace CatalogTestTool
                                 }
                             }
 
-                            else targetFrameworksList.Add("");
+                            else targetFrameworksList.Add(string.Empty);
 
                             //Checks if a PackageRegistrations entry already exists
                             SqlCommand checkPackageRegistrations = new SqlCommand("SELECT count(*) FROM PackageRegistrations WHERE [Id] = @ID", connection);
@@ -224,9 +220,9 @@ namespace CatalogTestTool
 
                             //Populate Packages TABLE
                             SqlCommand commandPackages = new SqlCommand("INSERT INTO Packages (PackageRegistrationKey,GalleryKey,Created, Description, DownloadCount," +
-                                "Hash, IsLatest, LastUpdated, LicenseUrl, Published, PackageFileSize,ProjectUrl,RequiresLicenseAcceptance, Summary, Tags, Title, Version," +
+                                "Hash, IsLatest, LastUpdated, LicenseUrl, Published, PackageFileSize,ProjectUrl,RequiresLicenseAcceptance, Summary, Tags, Title, Version, NormalizedVersion," +
                                 "IsLatestStable, Listed, IsPrerelease, Language, HideLicenseReport) VALUES (@IDENTITY,@GalleryKey, @created, @DSCRP, @downloadCount, 'null',"+
-                            "@IsLatest , @dateTime, @lUrl , @published, 0, @pUrl, @requiresLicenseAcceptance,@summary,@tag,@title,@vers, @IsLatestStable, 0, @preRelease, @lang, 0);", connection);
+                            "@IsLatest , @dateTime, @lUrl , @published, 0, @pUrl, @requiresLicenseAcceptance,@summary,@tag,@title,@vers,@vers, @IsLatestStable, 0, @preRelease, @lang, 0);", connection);
                             commandPackages.Parameters.AddWithValue("@IDENTITY", identity);
                             commandPackages.Parameters.AddWithValue("@GalleryKey", key);
                             commandPackages.Parameters.AddWithValue("@DSCRP", description);
