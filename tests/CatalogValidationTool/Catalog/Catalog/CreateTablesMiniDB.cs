@@ -39,6 +39,13 @@ namespace CatalogTestTool
             } while (tries < RetryCount);
         }
 
+        public static string GetDbName(string connectionString)
+        {
+            var connectionStringBuilder = new SqlConnectionStringBuilder(connectionString);
+            return connectionStringBuilder.InitialCatalog;
+        }
+
+
         public static void CreateDatabaseAndTables()
         {
             try
@@ -48,10 +55,10 @@ namespace CatalogTestTool
 
                 SqlConnection connection = new SqlConnection(sqlConnectionString);
                 connection.Open();
-                string createDBString = String.Format("IF EXISTS (SELECT * FROM master.dbo.sysdatabases WHERE [name] = '{0}' ) ALTER DATABASE {0} SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE {0}; CREATE DATABASE {0};",ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"]);
+                string MiniDBName = GetDbName(ConfigurationManager.AppSettings["MiniDBConnectionString"]);
+                string createDBString = String.Format("IF EXISTS (SELECT * FROM master.dbo.sysdatabases WHERE [name] = '{0}' ) ALTER DATABASE {0} SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE {0}; CREATE DATABASE {0};", MiniDBName);
 
                 SqlCommand createDB = new SqlCommand(createDBString, connection);
-                createDB.Parameters.AddWithValue("@DBName", ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"]);
                 ExecuteNonQueryWithRetry(createDB);
 
                 //Run Scripts to create the tables in the miniDB
@@ -62,22 +69,22 @@ namespace CatalogTestTool
                 FileInfo PackageDependencies = new FileInfo("PackageDependencies.sql");
                 FileInfo PackageFramework = new FileInfo("PackageFramework.sql");
 
-                string PackageAuthorsScript = "USE " + ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"] + PackageAuthors.OpenText().ReadToEnd();
-                string PackagesScript = "USE " + ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"] + Packages.OpenText().ReadToEnd();
-                string PackageRegistrationsScript = "USE " + ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"] + PackageRegistrations.OpenText().ReadToEnd();
-                string PackageDependenciesScript = "USE " + ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"] + PackageDependencies.OpenText().ReadToEnd();
-                string PackageFrameworksScript = "USE " + ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"] + PackageFramework.OpenText().ReadToEnd();
+                string PackageAuthorsScript = "USE " + MiniDBName+" " + PackageAuthors.OpenText().ReadToEnd();
+                string PackagesScript = "USE " + MiniDBName + "; " + Packages.OpenText().ReadToEnd();
+                string PackageRegistrationsScript = "USE " + MiniDBName + " " + PackageRegistrations.OpenText().ReadToEnd();
+                string PackageDependenciesScript = "USE " + MiniDBName + " " + PackageDependencies.OpenText().ReadToEnd();
+                string PackageFrameworksScript = "USE " + MiniDBName + " " + PackageFramework.OpenText().ReadToEnd();
 
                 SqlCommand packageAuthors = new SqlCommand(PackageAuthorsScript, connection);
-                packageAuthors.Parameters.AddWithValue("@DBName", ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"]);
+                //packageAuthors.Parameters.AddWithValue("@DBName", ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"]);
                 SqlCommand packages = new SqlCommand(PackagesScript, connection);
-                packages.Parameters.AddWithValue("@DBName", ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"]);
+                //packages.Parameters.AddWithValue("@DBName", ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"]);
                 SqlCommand packageRegistrations = new SqlCommand(PackageRegistrationsScript, connection);
-                packageRegistrations.Parameters.AddWithValue("@DBName", ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"]);
+                //packageRegistrations.Parameters.AddWithValue("@DBName", ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"]);
                 SqlCommand packageDependencies = new SqlCommand(PackageDependenciesScript, connection);
-                packageDependencies.Parameters.AddWithValue("@DBName", ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"]);
+                //packageDependencies.Parameters.AddWithValue("@DBName", ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"]);
                 SqlCommand packageFrameworks = new SqlCommand(PackageFrameworksScript, connection);
-                packageFrameworks.Parameters.AddWithValue("@DBName", ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"]);
+                //packageFrameworks.Parameters.AddWithValue("@DBName", ConfigurationManager.AppSettings["MiniDBCreateDatabaseAndTables"]);
                 ExecuteNonQueryWithRetry(packageRegistrations);
                 ExecuteNonQueryWithRetry(packages);
                 ExecuteNonQueryWithRetry(packageAuthors);
