@@ -10,7 +10,7 @@ using System.Configuration;
 namespace CatalogTestTool
 {
     // TODO: Connect to Azure logger and put the logging report on it, instead of on disc
-    public class AzureLogger : ILogger
+    public class ReportLogger : ILogger
     {      
         public Dictionary<string, List<string>> ReportDictionary = new Dictionary<string, List<string>>();
         /*Input: id,version and error messages about the current package; writer which is the report   

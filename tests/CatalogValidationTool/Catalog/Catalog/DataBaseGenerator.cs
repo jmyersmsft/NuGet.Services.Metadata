@@ -156,16 +156,7 @@ namespace CatalogTestTool
                                    
                                     string targetFrameworkOfDependencies = null;
                                     targetFrameworkOfDependencies= group.Value<string>("targetFramework") ?? string.Empty;
-                                    //try
-                                    //{
-                                    //    targetFrameworkOfDependencies = group["targetFramework"].ToString();
-                                    //}
-
-                                    //catch
-                                    //{
-                                    //    targetFrameworkOfDependencies = "";
-                                    //}
-
+                               
                                     foreach (JToken dependency in group["dependency"])
                                     {
                                         string dependencyId = string.Empty;

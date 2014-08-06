@@ -67,7 +67,7 @@ namespace CatalogTestTool
         {
             /* Input: Dictionaries populated with data from source DB and mini DB
              Each package is checked for the integrity of metadata*/
-            AzureLogger azurelog = new AzureLogger();//Report logger initialized
+            ReportLogger azurelog = new ReportLogger();//Report logger initialized
             int packageCount = 0;
             using (StreamWriter writer = new StreamWriter(ConfigurationManager.AppSettings["JsonReport"]))//Where the report is logged
             {
