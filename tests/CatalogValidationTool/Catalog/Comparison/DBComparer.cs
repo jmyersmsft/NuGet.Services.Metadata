@@ -67,7 +67,7 @@ namespace CatalogTestTool
         {
             /* Input: Dictionaries populated with data from source DB and mini DB
              Each package is checked for the integrity of metadata*/
-            ReportLogger azurelog = new ReportLogger();//Report logger initialized
+            ReportLogger reportlog = new ReportLogger();//Report logger initialized
             int packageCount = 0;
             using (StreamWriter writer = new StreamWriter(ConfigurationManager.AppSettings["JsonReport"]))//Where the report is logged
             {
@@ -103,21 +103,21 @@ namespace CatalogTestTool
                             if (frameworks) errorMessages.Add(messageFrameworks);
                             if (dependencies) errorMessages.Add(messageDependencies);
                             if (authors) errorMessages.Add(messageAuthors);
-                            azurelog.ReportDictionary.Add(valueSource.registration.id + " " + valueSource.version, errorMessages);
-                            azurelog.LogPackage(valueSource.registration.id, valueSource.version.ToString(), true, errorMessages, writer);//Call to the method to log the status of the package 
+                            reportlog.ReportDictionary.Add(valueSource.registration.id + " " + valueSource.version, errorMessages);
+                            reportlog.LogPackage(valueSource.registration.id, valueSource.version.ToString(), true, errorMessages, writer);//Call to the method to log the status of the package 
                         }
                     }
 
                     else//if key in miniDB not in source- catalog has entry not in source
                     {
                         errorMessages.Add("Package found in MiniDB and not in source");
-                        if (azurelog.ReportDictionary.ContainsKey(entry.Value.registration.id + " " + entry.Value.version))
+                        if (reportlog.ReportDictionary.ContainsKey(entry.Value.registration.id + " " + entry.Value.version))
                         {
-                            azurelog.ReportDictionary[entry.Value.registration.id + " " + entry.Value.version] = errorMessages;                           
+                            reportlog.ReportDictionary[entry.Value.registration.id + " " + entry.Value.version] = errorMessages;                           
                         }
 
-                        else azurelog.ReportDictionary.Add(entry.Value.registration.id + " " + entry.Value.version, errorMessages);
-                        azurelog.LogPackage(entry.Value.registration.id, entry.Value.version.ToString(), true, errorMessages, writer);                       
+                        else reportlog.ReportDictionary.Add(entry.Value.registration.id + " " + entry.Value.version, errorMessages);
+                        reportlog.LogPackage(entry.Value.registration.id, entry.Value.version.ToString(), true, errorMessages, writer);                       
                         
                     }
                 }
@@ -129,17 +129,17 @@ namespace CatalogTestTool
                     if (!(miniDB.TryGetValue(entry.Key, out valueMiniDB)))
                     {
                         errorMessages.Add("Package found in source and not in MiniDB");
-                        if (azurelog.ReportDictionary.ContainsKey(entry.Value.registration.id + " " + entry.Value.version))
+                        if (reportlog.ReportDictionary.ContainsKey(entry.Value.registration.id + " " + entry.Value.version))
                         {
-                            azurelog.ReportDictionary[entry.Value.registration.id + " " + entry.Value.version] = errorMessages;
+                            reportlog.ReportDictionary[entry.Value.registration.id + " " + entry.Value.version] = errorMessages;
                         }
 
-                        else azurelog.ReportDictionary.Add(entry.Value.registration.id + " " + entry.Value.version, errorMessages);
-                        azurelog.LogPackage(entry.Value.registration.id, entry.Value.version.ToString(), true, errorMessages, writer);    
+                        else reportlog.ReportDictionary.Add(entry.Value.registration.id + " " + entry.Value.version, errorMessages);
+                        reportlog.LogPackage(entry.Value.registration.id, entry.Value.version.ToString(), true, errorMessages, writer);    
                     }
                 }
 
-                azurelog.HtmlRender(packageCount, totalTimeForRun);
+                reportlog.HtmlRender(packageCount, totalTimeForRun);
                 writer.WriteLine("Time ended: " + DateTime.Now);
             }
 
