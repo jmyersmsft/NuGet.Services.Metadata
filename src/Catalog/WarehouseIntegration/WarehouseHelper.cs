@@ -6,7 +6,9 @@ using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.Diagnostics;
 using System.Linq;
+using System.Net.Http;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace NuGet.Services.Metadata.Catalog.WarehouseIntegration
@@ -28,7 +30,7 @@ namespace NuGet.Services.Metadata.Catalog.WarehouseIntegration
 	                    ISNULL(PackageStatistics.DependentPackage, ''),
 	                    ISNULL(PackageStatistics.ProjectGuids, ''),
 	                    PackageRegistrations.Id,
-	                    Packages.[Version],
+	                    Packages.[NormalizedVersion],
 	                    ISNULL(Packages.Title, ''),
 	                    ISNULL(Packages.[Description], ''),
 	                    ISNULL(Packages.IconUrl, '')
@@ -134,6 +136,69 @@ namespace NuGet.Services.Metadata.Catalog.WarehouseIntegration
 
                 await writer.Commit();
             }
+        }
+
+        public static async Task PostToMetricsService(string connectionString)
+        {
+            int lastKey = 0;
+            DateTime minDownloadTimeStamp;
+            DateTime maxDownloadTimeStamp;
+
+            string metricsService = "http://localhost:12345/DownloadEvent";
+            using (var httpClient = new HttpClient()
+                                    {
+                                        BaseAddress = new Uri(metricsService)
+                                    })
+            {
+                for(int i = 0; i < 1; i++)
+                {
+                    JArray batch = GetNextBatch(connectionString, ref lastKey, out minDownloadTimeStamp, out maxDownloadTimeStamp);
+                    JArray formattedBatch = new JArray();
+                    int j = 0;
+                    foreach(var item in batch)
+                    {
+                        j++;
+                        JObject jObject = GetJObject(item as JArray);
+                        var response = await httpClient.PostAsync(metricsService, new StringContent(jObject.ToString(), Encoding.Default, "application/json"));
+                        Trace.WriteLine("Posting for package id '" + jObject[IdKey] + "' and version '" + jObject[VersionKey] + "'...");
+                        if(j%4 == 0)
+                        {
+                            Trace.WriteLine("Sleeping...");
+                            Thread.Sleep(2000);
+                        }
+
+                        if(j >= 20)
+                        {
+                            break;
+                        }
+                        //formattedBatch.Add(jObject);
+                    }
+
+                    //var response = await httpClient.PostAsync(metricsService, new StringContent(formattedBatch.ToString(), Encoding.Default, "application/json"));
+                    //Trace.WriteLine("Completed batch number" + i + 1 + ". Sleeping for a second...");
+                    //Thread.Sleep(1000);
+                }
+            }
+        }
+
+        const string IdKey = "id";
+        const string VersionKey = "version";
+        const string IPAddressKey = "ipAddress";
+        const string UserAgentKey = "userAgent";
+        const string OperationKey = "operation";
+        const string DependentPackageKey = "dependentPackage";
+        const string ProjectGuidsKey = "projectGuids";
+        private static JObject GetJObject(JArray row)
+        {
+            var jObject = new JObject();
+            jObject.Add(IdKey, row[6].ToString());
+            jObject.Add(VersionKey, row[7].ToString());
+            jObject.Add(UserAgentKey, row[2].ToString());
+            jObject.Add(OperationKey, row[3].ToString());
+            jObject.Add(DependentPackageKey, row[4].ToString());
+            jObject.Add(ProjectGuidsKey, row[5].ToString());
+
+            return jObject;
         }
     }
 }

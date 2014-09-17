@@ -149,6 +149,7 @@
     <Compile Include="WarehouseIntegration\StatsCountCollector.cs" />
     <Compile Include="WarehouseIntegration\StatsGreaterThanCountCollector.cs" />
     <Compile Include="WarehouseIntegration\StatsLessThanCountCollector.cs" />
+    <Compile Include="WarehouseIntegration\StatsTimeRangeCountCollector.cs" />
     <Compile Include="WarehouseIntegration\WarehouseHelper.cs" />
   </ItemGroup>
   <ItemGroup>

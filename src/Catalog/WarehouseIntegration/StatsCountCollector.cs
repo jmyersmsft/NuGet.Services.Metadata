@@ -16,6 +16,10 @@ namespace NuGet.Services.Metadata.Catalog.WarehouseIntegration
 
         public int Count { get; private set; }
 
+        public DateTime ResultMinTimestamp { get; private set; }
+
+        public DateTime ResultMaxTimestamp { get; private set; }
+
         protected abstract bool SelectItem(DateTime itemMinDownloadTimestamp, DateTime itemMaxDownloadTimestamp);
 
         protected abstract bool SelectRow(DateTime rowDownloadTimestamp);
@@ -36,20 +40,25 @@ namespace NuGet.Services.Metadata.Catalog.WarehouseIntegration
                 }
             }
 
+
             if (tasks.Count > 0)
             {
                 await Task.WhenAll(tasks.ToArray());
 
+                ResultMinTimestamp = DateTime.MaxValue.ToUniversalTime();
+                ResultMaxTimestamp = DateTime.MinValue.ToUniversalTime();
                 foreach (Task<string> task in tasks)
                 {
                     JArray statisticsPage = JArray.Parse(task.Result);
 
                     foreach (JArray row in statisticsPage)
                     {
-                        DateTime rowTimeStamp = row[1].ToObject<DateTime>();
+                        DateTime rowTimeStamp = row[0].ToObject<DateTime>();
 
                         if (SelectRow(rowTimeStamp))
                         {
+                            ResultMinTimestamp = ResultMinTimestamp > rowTimeStamp ? rowTimeStamp : ResultMinTimestamp;
+                            ResultMaxTimestamp = ResultMaxTimestamp < rowTimeStamp ? rowTimeStamp : ResultMaxTimestamp;
                             Count++;
                         }
                     }
