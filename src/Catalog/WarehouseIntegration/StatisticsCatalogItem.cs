@@ -11,16 +11,16 @@ namespace NuGet.Services.Metadata.Catalog.WarehouseIntegration
         static Uri CatalogItemType = new Uri("http://nuget.org/schema#PackageStatisticsPage");
 
         JArray _data;
-        string _pageNumber;
         DateTime _minDownloadTimestamp;
         DateTime _maxDownloadTimestamp;
+        Guid _itemGUID;
 
-        public StatisticsCatalogItem(JArray data, string pageNumber, DateTime minDownloadTimestamp, DateTime maxDownloadTimestamp)
+        public StatisticsCatalogItem(JArray data, DateTime minDownloadTimestamp, DateTime maxDownloadTimestamp)
         {
             _data = data;
-            _pageNumber = pageNumber;
             _minDownloadTimestamp = minDownloadTimestamp;
             _maxDownloadTimestamp = maxDownloadTimestamp;
+            _itemGUID = Guid.NewGuid();
         }
         public override StorageContent CreateContent(CatalogContext context)
         {
@@ -35,10 +35,12 @@ namespace NuGet.Services.Metadata.Catalog.WarehouseIntegration
 
             INode subject = graph.CreateUriNode(resourceUri);
             INode count = graph.CreateUriNode(new Uri("http://nuget.org/schema#count"));
+            INode itemGUID = graph.CreateUriNode(new Uri("http://nuget.org/schema#itemGUID"));
             INode minDownloadTimestamp = graph.CreateUriNode(new Uri("http://nuget.org/schema#minDownloadTimestamp"));
             INode maxDownloadTimestamp = graph.CreateUriNode(new Uri("http://nuget.org/schema#maxDownloadTimestamp"));
 
             graph.Assert(subject, count, graph.CreateLiteralNode(_data.Count.ToString(), Schema.DataTypes.Integer));
+            graph.Assert(subject, itemGUID, graph.CreateLiteralNode(_itemGUID.ToString()));
             graph.Assert(subject, minDownloadTimestamp, graph.CreateLiteralNode(_minDownloadTimestamp.ToString("O"), Schema.DataTypes.DateTime));
             graph.Assert(subject, maxDownloadTimestamp, graph.CreateLiteralNode(_maxDownloadTimestamp.ToString("O"), Schema.DataTypes.DateTime));
 
@@ -47,7 +49,11 @@ namespace NuGet.Services.Metadata.Catalog.WarehouseIntegration
 
         protected override string GetItemIdentity()
         {
-            return _pageNumber;
+            const string dateTimeFormat = "yyyy.MM.dd.HH.mm.ss";
+            const string itemIdentityFormat = "{0}_TO_{1}";
+            string itemIdentity = String.Format(itemIdentityFormat, _minDownloadTimestamp.ToString(dateTimeFormat), _maxDownloadTimestamp.ToString(dateTimeFormat));
+
+            return itemIdentity;
         }
 
         public override Uri GetItemType()

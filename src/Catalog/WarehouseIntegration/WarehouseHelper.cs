@@ -107,9 +107,6 @@ namespace NuGet.Services.Metadata.Catalog.WarehouseIntegration
             const int BatchSize = 100;
             int i = 0;
 
-            const string dateTimeFormat = "yyyy.MM.dd.HH.mm.ss";
-            const string pageNumberFormat = "{0}_TO_{1}";
-
             using (CatalogWriter writer = new CatalogWriter(storage, new CatalogContext(), 500))
             {
                 int lastKey = 0;
@@ -119,18 +116,17 @@ namespace NuGet.Services.Metadata.Catalog.WarehouseIntegration
                 {
                     iterations++;
 
-                    DateTime minDownloadTimeStamp;
-                    DateTime maxDownloadTimeStamp;
+                    DateTime minDownloadTimestamp;
+                    DateTime maxDownloadTimestamp;
 
-                    JArray batch = GetNextBatch(connectionString, ref lastKey, out minDownloadTimeStamp, out maxDownloadTimeStamp);
+                    JArray batch = GetNextBatch(connectionString, ref lastKey, out minDownloadTimestamp, out maxDownloadTimestamp);
 
                     if (batch == null)
                     {
                         break;
                     }
 
-                    string pageNumber = String.Format(pageNumberFormat, minDownloadTimeStamp.ToString(dateTimeFormat), maxDownloadTimeStamp.ToString(dateTimeFormat));
-                    writer.Add(new StatisticsCatalogItem(batch, pageNumber, minDownloadTimeStamp, maxDownloadTimeStamp));
+                    writer.Add(new StatisticsCatalogItem(batch, minDownloadTimestamp, maxDownloadTimestamp));
 
                     if (++i % BatchSize == 0)
                     {

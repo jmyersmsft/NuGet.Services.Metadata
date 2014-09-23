@@ -44,7 +44,7 @@ namespace NuGet.Services.Metadata.Catalog.WarehouseIntegration
                 {
                     JArray statsCatalogItemData = JArray.Parse(tasks[i].Result);
                     selectedItems[i]["data"] = statsCatalogItemData;
-                    Result.Add(selectedItems);
+                    Result.Add(selectedItems[i]);
                 }
             }
         }
