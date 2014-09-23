@@ -25,12 +25,12 @@ namespace NuGet.Services.Metadata.Catalog.WarehouseIntegration
                     SELECT TOP(1000) 
 	                    PackageStatistics.[Key],
 	                    PackageStatistics.[TimeStamp],
+	                    PackageRegistrations.Id,
+	                    Packages.[NormalizedVersion],
 	                    ISNULL(PackageStatistics.UserAgent, ''),
 	                    ISNULL(PackageStatistics.Operation, ''), 
 	                    ISNULL(PackageStatistics.DependentPackage, ''),
 	                    ISNULL(PackageStatistics.ProjectGuids, ''),
-	                    PackageRegistrations.Id,
-	                    Packages.[NormalizedVersion],
 	                    ISNULL(Packages.Title, ''),
 	                    ISNULL(Packages.[Description], ''),
 	                    ISNULL(Packages.IconUrl, '')
@@ -75,7 +75,7 @@ namespace NuGet.Services.Metadata.Catalog.WarehouseIntegration
 
                     JArray row = new JArray();
 
-                    row.Add(reader.GetInt32(0));
+                    //row.Add(reader.GetInt32(0));
                     row.Add(reader.GetDateTime(1).ToString("O"));
                     row.Add(reader.GetString(2));
                     row.Add(reader.GetString(3));
@@ -107,6 +107,9 @@ namespace NuGet.Services.Metadata.Catalog.WarehouseIntegration
             const int BatchSize = 100;
             int i = 0;
 
+            const string dateTimeFormat = "yyyy.MM.dd.HH.mm.ss";
+            const string pageNumberFormat = "{0}_TO_{1}";
+
             using (CatalogWriter writer = new CatalogWriter(storage, new CatalogContext(), 500))
             {
                 int lastKey = 0;
@@ -126,7 +129,8 @@ namespace NuGet.Services.Metadata.Catalog.WarehouseIntegration
                         break;
                     }
 
-                    writer.Add(new StatisticsCatalogItem(batch, lastKey.ToString(), minDownloadTimeStamp, maxDownloadTimeStamp));
+                    string pageNumber = String.Format(pageNumberFormat, minDownloadTimeStamp.ToString(dateTimeFormat), maxDownloadTimeStamp.ToString(dateTimeFormat));
+                    writer.Add(new StatisticsCatalogItem(batch, pageNumber, minDownloadTimeStamp, maxDownloadTimeStamp));
 
                     if (++i % BatchSize == 0)
                     {
