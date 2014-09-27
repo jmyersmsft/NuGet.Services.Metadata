@@ -1,0 +1,8 @@
+﻿
+PREFIX nuget: <http://schema.nuget.org/schema#>
+
+SELECT ?rangePackages
+WHERE 
+{ 
+    ?rangePackages a nuget:RangePackages .
+}

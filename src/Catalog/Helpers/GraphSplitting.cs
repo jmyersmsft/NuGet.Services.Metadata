@@ -92,7 +92,7 @@ namespace NuGet.Services.Metadata.Catalog
             }
             return nodeUri;
         }
-        public static void Rebase(IGraph source, IGraph destination, Uri sourceUri, Uri destinationUri)
+        static void Rebase(IGraph source, IGraph destination, Uri sourceUri, Uri destinationUri)
         {
             Uri modifiedDestinationUri = new Uri(destinationUri.ToString().Replace('#', '/'));
 

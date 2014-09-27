@@ -18,19 +18,27 @@ namespace NuGet.Services.Metadata.Catalog.Collecting
     {
         Storage _storage;
         JObject _registrationFrame;
+        JObject _rangePackagesFrame;
 
         public string GalleryBaseAddress { get; set; }
         public string ContentBaseAddress { get; set; }
 
+        public int LargeRegistrationThreshold { get; set; }
+
         public RegistrationCollector(Storage storage, int batchSize)
             : base(batchSize, new Uri[] { Schema.DataTypes.Package })
         {
-            _registrationFrame = JObject.Parse(Utils.GetResource("context.Resolver.json"));
+            _registrationFrame = JObject.Parse(Utils.GetResource("context.Registration.json"));
             _registrationFrame["@type"] = "PackageRegistration";
+
+            _rangePackagesFrame = JObject.Parse(Utils.GetResource("context.Registration.json"));
+            _rangePackagesFrame["@type"] = "RangePackages";
+            
             _storage = storage;
 
             GalleryBaseAddress = "http://tempuri.org";
             ContentBaseAddress = "http://tempuri.org";
+            LargeRegistrationThreshold = 100;
         }
 
         protected override async Task ProcessStore(TripleStore store)
@@ -67,6 +75,8 @@ namespace NuGet.Services.Metadata.Catalog.Collecting
 
         async Task<IGraph> LoadRegistration(Uri registrationUri)
         {
+            Console.WriteLine("load: {0}", registrationUri);
+
             string registrationJson = await _storage.LoadString(registrationUri);
             if (registrationJson == null)
             {
@@ -75,19 +85,53 @@ namespace NuGet.Services.Metadata.Catalog.Collecting
 
             IGraph registrationGraph = Utils.CreateGraph(registrationJson);
 
+            //await LoadRangePackages(registrationUri, registrationGraph);
+
             return registrationGraph;
         }
 
         async Task SaveRegistration(Uri registrationUri, IGraph registrationGraph)
         {
-            string json = Utils.CreateJson(registrationGraph, _registrationFrame);
+            int count = registrationGraph.GetTriplesWithPredicateObject(
+                registrationGraph.CreateUriNode(Schema.Predicates.Type),
+                registrationGraph.CreateUriNode(Schema.DataTypes.Package)).Count();
+
+            if (count < LargeRegistrationThreshold)
+            {
+                await Save(registrationUri, registrationGraph, _registrationFrame);
+            }
+            else
+            {
+                IDictionary<Uri, IGraph> resources = GraphSplitting.Split(registrationUri, registrationGraph);
+
+                IList<Task> tasks = new List<Task>();
+                foreach (KeyValuePair<Uri, IGraph> resource in resources)
+                {
+                    tasks.Add(Save(resource.Key, resource.Value, _registrationFrame));
+                }
+                Task.WaitAll(tasks.ToArray());
+            }
+        }
+
+        async Task Save(Uri resourceUri, IGraph resourceGraph, JObject frame)
+        {
+            string json = Utils.CreateJson(resourceGraph, frame);
 
             StorageContent content = new StringStorageContent(
                 json,
                 contentType: "application/json",
                 cacheControl: "public, max-age=300, s-maxage=300");
 
-            await _storage.Save(registrationUri, content);
+            Console.WriteLine("save: {0}", resourceUri);
+
+            await _storage.Save(resourceUri, content);
+        }
+
+        static int CountPackages(IGraph graph)
+        {
+            return graph.GetTriplesWithPredicateObject(
+                graph.CreateUriNode(Schema.Predicates.Type),
+                graph.CreateUriNode(Schema.DataTypes.Package)).Count();
         }
 
         void AddRangesToRegistration(Uri registrationUri, IGraph registrationGraph, SortedSet<NuGetVersion> versions, IDictionary<string, Uri> packageUriLookup)
@@ -109,20 +153,22 @@ namespace NuGet.Services.Metadata.Catalog.Collecting
                 Uri rangeUri = new Uri((registrationUri.ToString() + "#range/" + range.Low + "/" + range.High).ToLowerInvariant());
                 Uri rangePackagesUri = new Uri((registrationUri.ToString() + "#range/" + range.Low + "/" + range.High + "/packages").ToLowerInvariant());
 
-                INode rangeNode = registrationGraph.CreateUriNode(rangeUri);
-                INode rangePackagesNode = registrationGraph.CreateUriNode(rangePackagesUri);
+                INode packageRangeNode = registrationGraph.CreateUriNode(rangeUri);
 
-                registrationGraph.Assert(registrationGraph.CreateUriNode(registrationUri), registrationGraph.CreateUriNode(Schema.Predicates.PackageRange), rangeNode);
-                registrationGraph.Assert(rangeNode, registrationGraph.CreateUriNode(Schema.Predicates.Low), registrationGraph.CreateLiteralNode(range.Low));
-                registrationGraph.Assert(rangeNode, registrationGraph.CreateUriNode(Schema.Predicates.High), registrationGraph.CreateLiteralNode(range.High));
+                registrationGraph.Assert(registrationGraph.CreateUriNode(registrationUri), registrationGraph.CreateUriNode(Schema.Predicates.PackageRange), packageRangeNode);
+                registrationGraph.Assert(packageRangeNode, registrationGraph.CreateUriNode(Schema.Predicates.Type), registrationGraph.CreateUriNode(Schema.DataTypes.PackageRange));
+                registrationGraph.Assert(packageRangeNode, registrationGraph.CreateUriNode(Schema.Predicates.Low), registrationGraph.CreateLiteralNode(range.Low));
+                registrationGraph.Assert(packageRangeNode, registrationGraph.CreateUriNode(Schema.Predicates.High), registrationGraph.CreateLiteralNode(range.High));
 
-                registrationGraph.Assert(rangeNode, registrationGraph.CreateUriNode(Schema.Predicates.RangePackages), rangePackagesNode);
+                INode packageListNode = registrationGraph.CreateUriNode(rangePackagesUri);
 
-                registrationGraph.Assert(rangePackagesNode, registrationGraph.CreateUriNode(Schema.Predicates.Type), registrationGraph.CreateUriNode(Schema.DataTypes.RangePackages));
+                registrationGraph.Assert(packageRangeNode, registrationGraph.CreateUriNode(Schema.Predicates.PackageList), packageListNode);
+
+                registrationGraph.Assert(packageListNode, registrationGraph.CreateUriNode(Schema.Predicates.Type), registrationGraph.CreateUriNode(Schema.DataTypes.PackageList));
 
                 foreach (Uri package in range.Packages)
                 {
-                    registrationGraph.Assert(rangePackagesNode, registrationGraph.CreateUriNode(Schema.Predicates.Package), registrationGraph.CreateUriNode(package));
+                    registrationGraph.Assert(packageListNode, registrationGraph.CreateUriNode(Schema.Predicates.Package), registrationGraph.CreateUriNode(package));
                 }
             }
         }

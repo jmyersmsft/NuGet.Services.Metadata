@@ -54,7 +54,7 @@ namespace CatalogTests
         public static async Task Test1Async()
         {
             CountCollector collector = new CountCollector();
-            await collector.Run(new Uri("http://localhost:8000/export/catalog/index.json"), DateTime.MinValue);
+            await collector.Run(new Uri("http://localhost:8000/cat2/index.json"), DateTime.MinValue);
             Console.WriteLine("total: {0}", collector.Total);
             Console.WriteLine("http requests: {0}", collector.RequestCount);
         }
@@ -267,6 +267,31 @@ namespace CatalogTests
             Console.WriteLine("CollectorTests.Test9");
 
             Test9Async().Wait();
+        }
+
+        public static async Task Test10Async()
+        {
+            FileSystemEmulatorHandler handler = new VerboseHandler
+            {
+                BaseAddress = new Uri("http://localhost:8000"),
+                RootFolder = @"c:\data\site",
+                InnerHandler = new HttpClientHandler()
+            };
+
+            StorageFactory storageFactory = new FileStorageFactory("http://localhost:8000/test2/", @"c:\data\site\test2\");
+
+            RegistrationCatalogCollector collector = new RegistrationCatalogCollector(storageFactory, 100);
+
+            await collector.Run(new Uri("http://localhost:8000/full/index.json"), DateTime.MinValue, handler);
+
+            Console.WriteLine("http requests: {0} batch count: {1} items: {2}", collector.RequestCount, collector.BatchCount, collector.ItemCount);
+        }
+
+        public static void Test10()
+        {
+            Console.WriteLine("CollectorTests.Test10");
+
+            Test10Async().Wait();
         }
     }
 }

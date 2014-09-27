@@ -92,6 +92,7 @@
     <Compile Include="Collecting\CollectorCursor.cs" />
     <Compile Include="Collecting\CollectorHttpClient.cs" />
     <Compile Include="Collecting\NuspecCollector.cs" />
+    <Compile Include="Collecting\RegistrationCatalogCollector.cs" />
     <Compile Include="Collecting\RegistrationCollector.cs" />
     <Compile Include="Collecting\SegmentCollector.cs" />
     <Compile Include="Collecting\StoreCollector.cs" />
@@ -105,6 +106,8 @@
     <Compile Include="GalleryIntegration\GalleryExportCatalogItem.cs" />
     <Compile Include="GalleryIntegration\GalleryExportPackage.cs" />
     <Compile Include="GraphExtensions.cs" />
+    <Compile Include="Helpers\GraphLoading.cs" />
+    <Compile Include="Helpers\GraphSplitting.cs" />
     <Compile Include="Helpers\IndexingHelpers.cs" />
     <Compile Include="Maintenance\AzureStorageChecksumRecords.cs" />
     <Compile Include="Maintenance\CatalogBatcher.cs" />
@@ -113,6 +116,11 @@
     <Compile Include="Maintenance\CatalogUpdater.cs" />
     <Compile Include="Maintenance\ChecksumRecords.cs" />
     <Compile Include="Maintenance\NupkgCatalogItem.cs" />
+    <Compile Include="Persistence\AzureStorageFactory.cs" />
+    <Compile Include="Persistence\FileStorageFactory.cs" />
+    <Compile Include="Persistence\MemoryStorage.cs" />
+    <Compile Include="Persistence\InterceptStorage.cs" />
+    <Compile Include="Persistence\StorageFactory.cs" />
     <Compile Include="Persistence\StreamStorageContent.cs" />
     <Compile Include="Persistence\StringStorageContent.cs" />
     <Compile Include="Persistence\StorageContent.cs" />
@@ -170,6 +178,7 @@
     <EmbeddedResource Include="context\Resolver.json" />
     <EmbeddedResource Include="context\DeletePackage.json" />
     <EmbeddedResource Include="context\Segment.json" />
+    <EmbeddedResource Include="context\Registration.json" />
     <None Include="packages.config" />
     <EmbeddedResource Include="schema\schema.ttl" />
     <EmbeddedResource Include="sparql\All.rq" />
@@ -186,6 +195,9 @@
     <EmbeddedResource Include="sparql\SelectPackageFrameworkAssembly.rq" />
     <EmbeddedResource Include="sparql\SelectPackages.rq" />
     <EmbeddedResource Include="sparql\ConstructPackageGraph.rq" />
+    <EmbeddedResource Include="sparql\ConstructRangePackages.rq" />
+    <EmbeddedResource Include="sparql\SelectRangePackages.rq" />
+    <EmbeddedResource Include="sparql\Test.rq" />
   </ItemGroup>
   <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

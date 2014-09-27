@@ -66,7 +66,8 @@ namespace NuGet.Services.Metadata.Catalog.Maintenance
                 item.SetCommitId(commitId);
                 item.SetBaseAddress(_storage.BaseAddress);
 
-                Uri resourceUri = new Uri(item.GetBaseAddress(), item.GetRelativeAddress());
+                //Uri resourceUri = new Uri(item.GetBaseAddress(), item.GetRelativeAddress());
+                Uri resourceUri = item.GetItemAddress();
                 StorageContent content = item.CreateContent(_context);
                 IGraph pageContent = item.CreatePageContent(_context);
 
