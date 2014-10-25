@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2013
-VisualStudioVersion = 12.0.21005.1
+VisualStudioVersion = 12.0.30723.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JsonLDIntegrationTests", "tests\JsonLDIntegrationTests\JsonLDIntegrationTests\JsonLDIntegrationTests.csproj", "{6A4E128E-B06D-4541-AA78-C32A66B2AD9B}"
 EndProject
@@ -24,6 +24,14 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NuGetFeedTests", "tests\NuGetFeedTests\NuGetFeedTests.csproj", "{C2318A2C-BBD3-4BDE-B742-EC3EF8C3E5FD}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ng", "src\Ng\Ng.csproj", "{5234D86F-2C0E-4181-AAB7-BBDA3253B4E1}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DistributedWork", "DistributedWork", "{E935D13C-AF64-4896-A1B2-FA5D048C40F4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DistributedSharedLib", "DistributedMetadata\DistributedSharedLib.csproj", "{291CE865-A96F-4E13-8840-3903F117C689}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DistributedOne", "DistributedOne\DistributedOne.csproj", "{6F18CEEE-4FD0-4F26-A2A1-A78F990F96D1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DistributedMany", "DistributedMany\DistributedMany.csproj", "{2DE8E090-D2C2-4FE1-8F16-6EFB5447EC8D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -75,8 +83,25 @@ Global
 		{5234D86F-2C0E-4181-AAB7-BBDA3253B4E1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5234D86F-2C0E-4181-AAB7-BBDA3253B4E1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5234D86F-2C0E-4181-AAB7-BBDA3253B4E1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{291CE865-A96F-4E13-8840-3903F117C689}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{291CE865-A96F-4E13-8840-3903F117C689}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{291CE865-A96F-4E13-8840-3903F117C689}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{291CE865-A96F-4E13-8840-3903F117C689}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6F18CEEE-4FD0-4F26-A2A1-A78F990F96D1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6F18CEEE-4FD0-4F26-A2A1-A78F990F96D1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6F18CEEE-4FD0-4F26-A2A1-A78F990F96D1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6F18CEEE-4FD0-4F26-A2A1-A78F990F96D1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2DE8E090-D2C2-4FE1-8F16-6EFB5447EC8D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2DE8E090-D2C2-4FE1-8F16-6EFB5447EC8D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2DE8E090-D2C2-4FE1-8F16-6EFB5447EC8D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2DE8E090-D2C2-4FE1-8F16-6EFB5447EC8D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{291CE865-A96F-4E13-8840-3903F117C689} = {E935D13C-AF64-4896-A1B2-FA5D048C40F4}
+		{6F18CEEE-4FD0-4F26-A2A1-A78F990F96D1} = {E935D13C-AF64-4896-A1B2-FA5D048C40F4}
+		{2DE8E090-D2C2-4FE1-8F16-6EFB5447EC8D} = {E935D13C-AF64-4896-A1B2-FA5D048C40F4}
 	EndGlobalSection
 EndGlobal
