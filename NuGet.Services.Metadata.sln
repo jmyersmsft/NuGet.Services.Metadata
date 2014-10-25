@@ -25,13 +25,13 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NuGetFeedTests", "tests\NuG
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ng", "src\Ng\Ng.csproj", "{5234D86F-2C0E-4181-AAB7-BBDA3253B4E1}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DistributedWork", "DistributedWork", "{E935D13C-AF64-4896-A1B2-FA5D048C40F4}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Canton", "Canton", "{E935D13C-AF64-4896-A1B2-FA5D048C40F4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DistributedSharedLib", "DistributedMetadata\DistributedSharedLib.csproj", "{291CE865-A96F-4E13-8840-3903F117C689}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CantonLib", "src\Canton\CantonLib\CantonLib.csproj", "{291CE865-A96F-4E13-8840-3903F117C689}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DistributedOne", "DistributedOne\DistributedOne.csproj", "{6F18CEEE-4FD0-4F26-A2A1-A78F990F96D1}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CantonOne", "src\Canton\CantonOne\CantonOne.csproj", "{6F18CEEE-4FD0-4F26-A2A1-A78F990F96D1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DistributedMany", "DistributedMany\DistributedMany.csproj", "{2DE8E090-D2C2-4FE1-8F16-6EFB5447EC8D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CantonMany", "src\Canton\CantonMany\CantonMany.csproj", "{2DE8E090-D2C2-4FE1-8F16-6EFB5447EC8D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

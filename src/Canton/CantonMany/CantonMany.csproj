@@ -7,8 +7,8 @@
     <ProjectGuid>{2DE8E090-D2C2-4FE1-8F16-6EFB5447EC8D}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>NuGet.DistributedWork</RootNamespace>
-    <AssemblyName>NuGet.DistributedWork.Many</AssemblyName>
+    <RootNamespace>NuGet.Canton</RootNamespace>
+    <AssemblyName>NuGet.Canton.Many</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
@@ -48,9 +48,9 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\DistributedMetadata\DistributedSharedLib.csproj">
+    <ProjectReference Include="..\DistributedMetadata\CantonLib.csproj">
       <Project>{291ce865-a96f-4e13-8840-3903f117c689}</Project>
-      <Name>DistributedSharedLib</Name>
+      <Name>CantonLib</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

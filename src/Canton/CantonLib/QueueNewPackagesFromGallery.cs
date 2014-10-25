@@ -7,6 +7,9 @@ using System.Threading.Tasks;
 
 namespace NuGet.DistributedWork
 {
+    /// <summary>
+    /// Reads the gallery DB and queues new packages.
+    /// </summary>
     public class QueueNewPackagesFromGallery : DistributedJob
     {
 
@@ -20,6 +23,5 @@ namespace NuGet.DistributedWork
         {
 
         }
-
     }
 }
