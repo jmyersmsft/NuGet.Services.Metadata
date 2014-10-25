@@ -1,4 +1,5 @@
-﻿using System;
+﻿using NuGet.Services.Metadata.Catalog.Collecting;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -10,10 +11,14 @@ namespace NuGet.DistributedWork
     public abstract class DistributedJob
     {
         private readonly Stopwatch _runTime;
+        private readonly CollectorCursor _start;
+        private readonly CollectorCursor _end;
 
-        public DistributedJob()
+        public DistributedJob(CollectorCursor start, CollectorCursor end)
         {
             _runTime = new Stopwatch();
+            _start = start;
+            _end = end;
         }
 
         public void Run()
@@ -35,6 +40,14 @@ namespace NuGet.DistributedWork
             get
             {
                 return _runTime;
+            }
+        }
+
+        public virtual Config Config
+        {
+            get
+            {
+                return Config.Instance;
             }
         }
     }
