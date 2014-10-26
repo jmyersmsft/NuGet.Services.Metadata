@@ -22,6 +22,7 @@ namespace NuGet.Canton
     {
         public const string CursorName = "queuenewpackagesfromgallery";
         private const int BatchSize = 2000;
+        private int _cantonCommitId = 0;
 
         public QueueNewPackagesFromGallery(Config config)
             : base(config, CursorName)
@@ -37,6 +38,12 @@ namespace NuGet.Canton
             if (Cursor.Metadata.TryGetValue("lastHighest", out lastHighestToken))
             {
                 lastHighest = lastHighestToken.ToObject<int>();
+            }
+
+            JToken cantonCommitIdToken = null;
+            if (Cursor.Metadata.TryGetValue("cantonCommitId", out cantonCommitIdToken))
+            {
+                _cantonCommitId = cantonCommitIdToken.ToObject<int>();
             }
 
             DateTime end = DateTime.UtcNow.Subtract(TimeSpan.FromMinutes(15));
@@ -85,6 +92,7 @@ namespace NuGet.Canton
                 // update the cursor
                 JObject obj = new JObject();
                 obj.Add("lastHighest", lastHighest);
+                obj.Add("cantonCommitId", _cantonCommitId);
                 cursorUpdate = Cursor.Update(DateTime.UtcNow, obj);
             }
 
@@ -102,6 +110,9 @@ namespace NuGet.Canton
             summary.Add("submitted", DateTime.UtcNow.ToString("O"));
             summary.Add("failures", 0);
             summary.Add("host", Host);
+
+            summary.Add("cantonCommitId", _cantonCommitId);
+            _cantonCommitId++;
 
             queue.AddMessage(new CloudQueueMessage(summary.ToString()));
 

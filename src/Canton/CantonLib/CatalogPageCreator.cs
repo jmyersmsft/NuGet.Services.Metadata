@@ -10,18 +10,18 @@ namespace NuGet.Canton
 {
     public class CatalogPageCreator : PageCreator
     {
-        private Action<Uri, Uri> _itemComplete;
+        private Action<Uri> _itemComplete;
 
-        public CatalogPageCreator(Storage storage, Action<Uri, Uri> itemComplete)
+        public CatalogPageCreator(Storage storage, Action<Uri> itemComplete)
             : base(storage)
         {
             _itemComplete = itemComplete;
             _threads = 8;
         }
 
-        protected override void CommitItemComplete(Uri resourceUri, Uri pageUri)
+        protected override void CommitItemComplete(Uri resourceUri)
         {
-            _itemComplete(resourceUri, pageUri);
+            _itemComplete(resourceUri);
         }
     }
 }

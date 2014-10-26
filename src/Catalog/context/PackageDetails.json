@@ -9,6 +9,7 @@
         "supportedFrameworks": { "@id": "supportedFramework", "@container": "@set" },
         "assetGroups": { "@id": "assetGroup", "@container": "@set" },
         "assets": { "@id": "asset", "@container": "@set" },
+        "tags": { "@id": "tag", "@container": "@set" },
         "assetGroupProperties": { "@id": "assetGroupProperty", "@container": "@set" },
         "published" : { "@type" : "xsd:dateTime" },
         "catalog:commitTimeStamp" : { "@type" : "xsd:dateTime" }

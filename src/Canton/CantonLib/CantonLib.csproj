@@ -86,10 +86,12 @@
     <Compile Include="CantonCatalogItem.cs" />
     <Compile Include="CantonCursor.cs" />
     <Compile Include="CantonUtilities.cs" />
+    <Compile Include="CatalogPageCreator.cs" />
     <Compile Include="Config.cs" />
     <Compile Include="CantonConstants.cs" />
     <Compile Include="CursorEntry.cs" />
-    <Compile Include="CatalogPageCreator.cs" />
+    <Compile Include="jobs\CatalogPageCommitJob.cs" />
+    <Compile Include="PageCreator.cs" />
     <Compile Include="GalleryPageCreator.cs" />
     <Compile Include="jobs\CantonJob.cs" />
     <Compile Include="jobs\CatalogPageJob.cs" />
@@ -98,6 +100,7 @@
     <Compile Include="jobs\QueueFedJob.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="jobs\QueueNewPackagesFromGalleryJob.cs" />
+    <Compile Include="TempUri.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Catalog\NuGet.Services.Metadata.Catalog.csproj">

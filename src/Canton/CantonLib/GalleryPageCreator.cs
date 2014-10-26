@@ -20,13 +20,28 @@ namespace NuGet.Canton
             _threads = 64;
         }
 
-        protected override Uri CreateIndexEntry(CatalogItem item, Uri resourceUri, Guid commitId, DateTime commitTimeStamp)
+        protected virtual Uri CreateCatalogPage(CatalogItem item)
         {
-            // we don't want this for gallery pages
+            // save the content to a non-temp location
+            StorageContent content = item.CreateContent(Context);
+
+            if (content != null)
+            {
+                var resourceUri = item.GetItemAddress();
+                Storage.Save(resourceUri, content).Wait();
+                return resourceUri;
+            }
+
             return null;
         }
 
-        protected override void CommitItemComplete(Uri resourceUri, Uri pageUri)
+        //protected override Uri CreateIndexEntry(CatalogItem item, Uri resourceUri, Guid commitId, DateTime commitTimeStamp)
+        //{
+        //    // we don't want this for gallery pages
+        //    return null;
+        //}
+
+        protected override void CommitItemComplete(Uri resourceUri)
         {
             _itemComplete(resourceUri);
         }

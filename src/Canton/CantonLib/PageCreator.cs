@@ -66,16 +66,18 @@ namespace NuGet.Canton
 
                     Uri catalogPageUri = CreateCatalogPage(item);
 
-                    if (catalogPageUri != null)
-                    {
-                        Uri indexPageUri = CreateIndexEntry(item, catalogPageUri, commitId, commitTimeStamp);
+                    CommitItemComplete(catalogPageUri);
 
-                        CommitItemComplete(catalogPageUri, indexPageUri);
-                    }
-                    else
-                    {
-                        Debug.Fail("Missing catalog content");
-                    }
+                    //if (catalogPageUri != null)
+                    //{
+                    //    Uri indexPageUri = CreateIndexEntry(item, catalogPageUri, commitId, commitTimeStamp);
+
+                    //    CommitItemComplete(catalogPageUri, indexPageUri);
+                    //}
+                    //else
+                    //{
+                    //    Debug.Fail("Missing catalog content");
+                    //}
                 }
                 catch (Exception e)
                 {
@@ -88,37 +90,42 @@ namespace NuGet.Canton
 
         protected virtual Uri CreateCatalogPage(CatalogItem item)
         {
-            StorageContent content = item.CreateContent(Context);
+            Uri tmpUri = GetTempUri("catalogpage", "ttl");
 
-            if (content != null)
+            using (IGraph graph = item.CreateContentGraph(Context))
             {
-                var resourceUri = item.GetItemAddress();
-                Storage.Save(resourceUri, content).Wait();
-                return resourceUri;
+                SaveGraph(graph, tmpUri).Wait();
             }
 
-            return null;
+            return tmpUri;
         }
 
-        protected virtual Uri CreateIndexEntry(CatalogItem item, Uri resourceUri, Guid commitId, DateTime commitTimeStamp)
-        {
-            IGraph pageContent = item.CreatePageContent(Context);
-            AddCatalogEntryData(pageContent, item.GetItemType(), resourceUri, commitId, commitTimeStamp);
+        //protected virtual Uri CreateIndexEntry(CatalogItem item, Uri resourceUri, Guid commitId, DateTime commitTimeStamp)
+        //{
+        //    Uri tmpUri = GetTempUri("catalogindexpage", "ttl");
 
+        //    using (IGraph pageContent = item.CreatePageContent(Context))
+        //    {
+        //        AddCatalogEntryData(pageContent, item.GetItemType(), resourceUri, commitId, commitTimeStamp);
+
+        //        SaveGraph(pageContent, tmpUri).Wait();
+        //    }
+
+        //    return tmpUri;
+        //}
+
+        private async Task SaveGraph(IGraph graph, Uri uri)
+        {
             StringBuilder sb = new StringBuilder();
             using (var stringWriter = new System.IO.StringWriter(sb))
             {
                 CompressingTurtleWriter turtleWriter = new CompressingTurtleWriter();
-                turtleWriter.Save(pageContent, stringWriter);
+                turtleWriter.Save(graph, stringWriter);
             }
 
             StorageContent content = new StringStorageContent(sb.ToString(), "application/json", "no-store");
 
-            Uri tmpUri = GetTempUri("catalogindexpage", "ttl");
-
-            Storage.Save(tmpUri, content).Wait();
-
-            return tmpUri;
+            await Storage.Save(uri, content);
         }
 
         protected Uri GetTempUri(string folder, string extension)
@@ -126,21 +133,21 @@ namespace NuGet.Canton
             return new Uri(String.Format(CultureInfo.InvariantCulture, "{0}{1}/{2}.{3}", Storage.BaseAddress.AbsoluteUri, folder, Guid.NewGuid().ToString(), extension).ToLowerInvariant());
         }
 
-        protected virtual void CommitItemComplete(Uri resourceUri, Uri pageUri)
+        protected virtual void CommitItemComplete(Uri resourceUri)
         {
             // this should be overridden
         }
 
-        private void AddCatalogEntryData(IGraph pageContent, Uri itemType, Uri resourceUri, Guid commitId, DateTime commitTimeStamp)
-        {
+        //private void AddCatalogEntryData(IGraph pageContent, Uri itemType, Uri resourceUri, Guid commitId, DateTime commitTimeStamp)
+        //{
             
-            var pageContentRoot = pageContent.CreateUriNode(resourceUri);
-            pageContent.Assert(pageContentRoot, pageContent.CreateUriNode(Schema.Predicates.Type), pageContent.CreateUriNode(itemType));
-            pageContent.Assert(pageContentRoot, pageContent.CreateUriNode(Schema.Predicates.CatalogCommitId), pageContent.CreateLiteralNode(commitId.ToString()));
-            pageContent.Assert(pageContentRoot,
-                pageContent.CreateUriNode(Schema.Predicates.CatalogCommitId),
-                pageContent.CreateLiteralNode(commitTimeStamp.ToString("O"), Schema.DataTypes.DateTime));
-        }
+        //    var pageContentRoot = pageContent.CreateUriNode(resourceUri);
+        //    pageContent.Assert(pageContentRoot, pageContent.CreateUriNode(Schema.Predicates.Type), pageContent.CreateUriNode(itemType));
+        //    pageContent.Assert(pageContentRoot, pageContent.CreateUriNode(Schema.Predicates.CatalogCommitId), pageContent.CreateLiteralNode(commitId.ToString()));
+        //    pageContent.Assert(pageContentRoot,
+        //        pageContent.CreateUriNode(Schema.Predicates.CatalogCommitId),
+        //        pageContent.CreateLiteralNode(commitTimeStamp.ToString("O"), Schema.DataTypes.DateTime));
+        //}
 
         async Task SaveRoot(Guid commitId, DateTime commitTimeStamp, IDictionary<string, CatalogItemSummary> pageEntries, IGraph commitMetadata)
         {

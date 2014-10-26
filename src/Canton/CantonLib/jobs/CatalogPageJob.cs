@@ -39,6 +39,7 @@ namespace NuGet.Canton
             {
                 JObject work = JObject.Parse(message.AsString);
                 Uri galleryPageUri = new Uri(work["uri"].ToString());
+                int cantonCommitId = work["cantonCommitId"].ToObject<int>();
 
                 // read the gallery page
                 JObject galleryPage = await GetJson(galleryPageUri);
@@ -56,7 +57,7 @@ namespace NuGet.Canton
                 // download the nupkg
                 FileInfo nupkg = await GetNupkg(id, version);
 
-                Action<Uri, Uri> handler = (resourceUri, pageUri) => QueuePage(resourceUri, pageUri, queue);
+                Action<Uri> handler = (resourceUri) => QueuePage(resourceUri, Schema.DataTypes.PackageDetails, cantonCommitId, queue);
 
                 // create the new catalog item
                 using (var stream = nupkg.OpenRead())
@@ -70,19 +71,24 @@ namespace NuGet.Canton
                     }
                 }
 
+                // clean up
+                nupkg.Delete();
+
+                // get the next work item
                 Queue.DeleteMessage(message);
                 message = Queue.GetMessage(hold);
             }
         }
 
-        private void QueuePage(Uri resourceUri, Uri pageUri, CloudQueue queue)
+        private void QueuePage(Uri resourceUri, Uri itemType, int cantonCommitId, CloudQueue queue)
         {
             JObject summary = new JObject();
             summary.Add("resourceUri", resourceUri.AbsoluteUri);
-            summary.Add("pageUri", pageUri.AbsoluteUri);
+            summary.Add("itemType", itemType.AbsoluteUri);
             summary.Add("submitted", DateTime.UtcNow.ToString("O"));
             summary.Add("failures", 0);
             summary.Add("host", Host);
+            summary.Add("cantonCommitId", cantonCommitId);
 
             queue.AddMessage(new CloudQueueMessage(summary.ToString()));
 
