@@ -2,9 +2,12 @@
 using Microsoft.WindowsAzure.Storage.Queue;
 using Newtonsoft.Json.Linq;
 using NuGet.Services.Metadata.Catalog.Collecting;
+using NuGet.Services.Metadata.Catalog.GalleryIntegration;
+using NuGet.Services.Metadata.Catalog.Persistence;
 using System;
 using System.Collections.Generic;
 using System.Data.SqlClient;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -17,21 +20,13 @@ namespace NuGet.Canton
     public class QueueNewPackagesFromGallery : CollectorJob
     {
         public const string CursorName = "queuenewpackagesfromgallery";
+        private const int BatchSize = 2000;
 
         public QueueNewPackagesFromGallery(Config config)
             : base(config, CursorName)
         {
 
         }
-
-        // TODO: Remove Top 100
-        private const string _cmdText = @"
-                    SELECT TOP(100) Packages.[NormalizedVersion], PackageRegistrations.[Id], Packages.Created
-                    FROM Packages
-                    INNER JOIN PackageRegistrations ON PackageRegistrations.[Key] = Packages.PackageRegistrationKey
-                    WHERE Packages.Created > @since AND Packages.Created <= @end
-                    ORDER BY Packages.Created
-                ";
 
         public override async Task RunCore()
         {
@@ -40,6 +35,34 @@ namespace NuGet.Canton
 
             var client = Account.CreateCloudQueueClient();
             var queue = client.GetQueueReference(CantonConstants.UploadQueue);
+            string dbConnStr = Config.GetProperty("GalleryConnectionString");
+
+            // Load storage
+            Storage storage = new AzureStorage(Account, Config.GetProperty("GalleryPageContainer"));
+            using (var writer = new AppendOnlyCatalogWriter(storage))
+            {
+                var batcher = new GalleryExportBatcher(BatchSize, writer);
+                int lastHighest = 0;
+                while (true)
+                {
+                    var range = GalleryExport.GetNextRange(
+                        dbConnStr,
+                        lastHighest,
+                        BatchSize).Result;
+
+                    if (range.Item1 == 0 && range.Item2 == 0)
+                    {
+                        break;
+                    }
+                    Log(String.Format(CultureInfo.InvariantCulture, "Writing packages with Keys {0}-{1} to catalog...", range.Item1, range.Item2));
+                    GalleryExport.WriteRange(
+                        dbConnStr,
+                        range,
+                        batcher).Wait();
+                    lastHighest = range.Item2;
+                }
+                batcher.Complete().Wait();
+            }
 
             using (SqlConnection connection = new SqlConnection(Config.GetProperty("GalleryConnectionString")))
             {

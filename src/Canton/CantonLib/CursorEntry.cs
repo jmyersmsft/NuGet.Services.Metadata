@@ -27,6 +27,11 @@ namespace NuGet.Canton
         public DateTime LockExpiration { get; set; }
 
         /// <summary>
+        /// Additional metadata for this cursor in json format.
+        /// </summary>
+        public string Metadata { get; set; }
+
+        /// <summary>
         /// Pipe delimited list of dependant cursors.
         /// </summary>
         public string DependantCursors { get; set; }
@@ -37,6 +42,8 @@ namespace NuGet.Canton
             Position = cursor.Position;
             LockExpiration = DateTime.UtcNow.Subtract(TimeSpan.FromHours(1));
             LockId = Guid.Empty;
+            Metadata = cursor.Metadata.ToString();
+            DependantCursors = String.Join("|", cursor.DependantCursors);
         }
 
         public CursorEntry()

@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
+using Newtonsoft.Json.Linq;
 
 namespace NuGet.Canton
 {
@@ -19,6 +20,7 @@ namespace NuGet.Canton
         private DateTime _position;
         private List<string> _dependantCursors;
         private readonly CloudStorageAccount _account;
+        private JObject _metadata;
 
         public CantonCursor(CloudStorageAccount account, string key)
         {
@@ -32,6 +34,7 @@ namespace NuGet.Canton
                 throw new ArgumentNullException("key");
             }
 
+            _metadata = new JObject();
             _dependantCursors = new List<string>(0);
             _key = key;
 
@@ -61,6 +64,11 @@ namespace NuGet.Canton
                     _dependantCursors = new List<string>(entry.DependantCursors.Split('|'));
                 }
 
+                if (!String.IsNullOrEmpty(entry.Metadata))
+                {
+                    _metadata = JObject.Parse(entry.Metadata);
+                }
+
                 if (entry.LockId != Guid.Empty && entry.LockExpiration > DateTime.UtcNow)
                 {
                     throw new Exception("Unable to use locked cursor");
@@ -71,7 +79,7 @@ namespace NuGet.Canton
         /// <summary>
         /// Saves the cursor to storage. Make sure ALL items with this position have been completed first.
         /// </summary>
-        public async Task Update(DateTime position)
+        public async Task Update(DateTime position, JObject metadata = null)
         {
             _position = position;
 
@@ -107,6 +115,14 @@ namespace NuGet.Canton
             get
             {
                 return _dependantCursors;
+            }
+        }
+
+        public JObject Metadata
+        {
+            get
+            {
+                return _metadata;
             }
         }
     }
