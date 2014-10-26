@@ -34,6 +34,7 @@ namespace NuGet.Canton
                 throw new ArgumentNullException("key");
             }
 
+            _account = account;
             _metadata = new JObject();
             _dependantCursors = new List<string>(0);
             _key = key;

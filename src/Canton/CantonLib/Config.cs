@@ -33,11 +33,7 @@ namespace NuGet.Canton
             JToken token = null;
             if (_config.TryGetValue(key, out token))
             {
-                if (token.Type == JTokenType.Property)
-                {
-                    JProperty prop = (JProperty)token;
-                    return prop.Value.ToString();
-                }
+                return token.ToString();
             }
 
             return string.Empty;

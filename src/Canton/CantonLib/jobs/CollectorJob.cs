@@ -23,7 +23,7 @@ namespace NuGet.Canton
         {
             get
             {
-                if (_cursor != null)
+                if (_cursor == null)
                 {
                     _cursor = new CantonCursor(Account, _cursorName);
                 }

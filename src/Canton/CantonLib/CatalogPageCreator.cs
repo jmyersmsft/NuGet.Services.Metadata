@@ -16,7 +16,7 @@ namespace NuGet.Canton
 {
     public class CatalogPageCreator : AppendOnlyCatalogWriter
     {
-
+        protected int _threads = 8;
 
         public CatalogPageCreator(Storage storage)
             : base(storage)
@@ -50,7 +50,7 @@ namespace NuGet.Canton
             ConcurrentDictionary<string, CatalogItemSummary> pageItems = new ConcurrentDictionary<string, CatalogItemSummary>();
 
             ParallelOptions options = new ParallelOptions();
-            options.MaxDegreeOfParallelism = 8;
+            options.MaxDegreeOfParallelism = _threads;
 
             var items = _batch.ToArray();
 

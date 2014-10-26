@@ -17,6 +17,7 @@ namespace NuGet.Canton
             : base(storage)
         {
             _itemComplete = itemComplete;
+            _threads = 64;
         }
 
         protected override Uri CreateIndexEntry(CatalogItem item, Uri resourceUri, Guid commitId, DateTime commitTimeStamp)

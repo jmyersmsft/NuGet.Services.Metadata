@@ -22,6 +22,8 @@ namespace NuGet.Canton.One
                 Environment.Exit(1);
             }
 
+            CantonUtilities.Init();
+
             Config config = new Config(args[0]);
 
             Queue<CantonJob> jobs = new Queue<CantonJob>();
