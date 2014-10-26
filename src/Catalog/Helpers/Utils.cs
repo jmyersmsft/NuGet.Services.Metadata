@@ -460,7 +460,7 @@ namespace NuGet.Services.Metadata.Catalog
             }
         }
 
-        public static CatalogItem CreateCatalogItem(Stream stream, DateTime published, string packageHash, string originName)
+        public static CatalogItem CreateCatalogItem(Stream stream, DateTime? published, string packageHash, string originName)
         {
             try
             {

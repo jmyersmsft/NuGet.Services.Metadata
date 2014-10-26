@@ -3,6 +3,7 @@ using Microsoft.WindowsAzure.Storage.Blob;
 using Microsoft.WindowsAzure.Storage.Queue;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -41,6 +42,13 @@ namespace NuGet.Canton
                 var tableClient = Account.CreateCloudTableClient();
                 var cursorTable = tableClient.GetTableReference(CantonConstants.CursorTable);
                 await cursorTable.CreateIfNotExistsAsync();
+
+                string localTmp = Config.GetProperty("localtmp");
+                DirectoryInfo tmpDir = new DirectoryInfo(localTmp);
+                if (!tmpDir.Exists)
+                {
+                    tmpDir.Create();
+                }
             }
         }
 
@@ -48,6 +56,7 @@ namespace NuGet.Canton
         {
             var container = client.GetContainerReference(name);
             await container.CreateIfNotExistsAsync();
+            container.SetPermissions(new BlobContainerPermissions { PublicAccess = BlobContainerPublicAccessType.Blob });
         }
 
         private async Task CreateQueue(CloudQueueClient client, string queueName)

@@ -9,7 +9,7 @@ using VDS.RDF;
 
 namespace NuGet.Canton
 {
-    public class GalleryPageCreator : CatalogPageCreator
+    public class GalleryPageCreator : PageCreator
     {
         private Action<Uri> _itemComplete;
 
