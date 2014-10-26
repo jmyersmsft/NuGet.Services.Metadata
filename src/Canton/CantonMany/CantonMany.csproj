@@ -73,6 +73,10 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\Catalog\NuGet.Services.Metadata.Catalog.csproj">
+      <Project>{e97f23b8-ecb0-4afa-b00c-015c39395fef}</Project>
+      <Name>NuGet.Services.Metadata.Catalog</Name>
+    </ProjectReference>
     <ProjectReference Include="..\CantonLib\CantonLib.csproj">
       <Project>{291ce865-a96f-4e13-8840-3903f117c689}</Project>
       <Name>CantonLib</Name>
