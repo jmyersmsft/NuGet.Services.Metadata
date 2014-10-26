@@ -7,34 +7,24 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace NuGet.DistributedWork
+namespace NuGet.Canton
 {
     public class Config
     {
-        private const string File = "config.json";
         private readonly JObject _config;
 
-        public Config()
+        public Config(string path)
         {
-            FileInfo file = new FileInfo(File);
+            FileInfo file = new FileInfo(path);
+
+            if (!file.Exists)
+            {
+                throw new FileNotFoundException(file.FullName);
+            }
 
             using (var stream = file.OpenText())
             {
                 _config = JObject.Parse(stream.ReadToEnd());
-            }
-        }
-
-        private static Config _instance;
-        public Config Instance
-        {
-            get
-            {
-                if (_instance == null)
-                {
-                    _instance = new Config();
-                }
-
-                return _instance;
             }
         }
 

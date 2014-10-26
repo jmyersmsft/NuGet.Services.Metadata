@@ -7,8 +7,8 @@
     <ProjectGuid>{6F18CEEE-4FD0-4F26-A2A1-A78F990F96D1}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>NuGet.Canton</RootNamespace>
-    <AssemblyName>NuGet.Canton.Many</AssemblyName>
+    <RootNamespace>NuGet.Canton.One</RootNamespace>
+    <AssemblyName>NuGet.Canton.One</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
@@ -48,7 +48,7 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\DistributedMetadata\CantonLib.csproj">
+    <ProjectReference Include="..\CantonLib\CantonLib.csproj">
       <Project>{291ce865-a96f-4e13-8840-3903f117c689}</Project>
       <Name>CantonLib</Name>
     </ProjectReference>
