@@ -3,6 +3,7 @@ using Microsoft.WindowsAzure.Storage.Queue;
 using Newtonsoft.Json.Linq;
 using NuGet.Services.Metadata.Catalog.Collecting;
 using NuGet.Services.Metadata.Catalog.GalleryIntegration;
+using NuGet.Services.Metadata.Catalog.Maintenance;
 using NuGet.Services.Metadata.Catalog.Persistence;
 using System;
 using System.Collections.Generic;
@@ -30,19 +31,29 @@ namespace NuGet.Canton
 
         public override async Task RunCore()
         {
-            DateTime start = Cursor.Position;
+            int lastHighest = 0;
+
+            JToken lastHighestToken = null;
+            if (Cursor.Metadata.TryGetValue("lastHighest", out lastHighestToken))
+            {
+                lastHighest = lastHighestToken.ToObject<int>();
+            }
+
             DateTime end = DateTime.UtcNow.Subtract(TimeSpan.FromMinutes(15));
 
             var client = Account.CreateCloudQueueClient();
             var queue = client.GetQueueReference(CantonConstants.UploadQueue);
             string dbConnStr = Config.GetProperty("GalleryConnectionString");
 
+            Action<Uri> handler = (resourceUri) => QueuePage(resourceUri, queue);
+
+            Task cursorUpdate = null;
+
             // Load storage
             Storage storage = new AzureStorage(Account, Config.GetProperty("GalleryPageContainer"));
-            using (var writer = new AppendOnlyCatalogWriter(storage))
+            using (var writer = new GalleryPageCreator(storage, handler))
             {
                 var batcher = new GalleryExportBatcher(BatchSize, writer);
-                int lastHighest = 0;
                 while (true)
                 {
                     var range = GalleryExport.GetNextRange(
@@ -54,6 +65,7 @@ namespace NuGet.Canton
                     {
                         break;
                     }
+
                     Log(String.Format(CultureInfo.InvariantCulture, "Writing packages with Keys {0}-{1} to catalog...", range.Item1, range.Item2));
                     GalleryExport.WriteRange(
                         dbConnStr,
@@ -61,52 +73,39 @@ namespace NuGet.Canton
                         batcher).Wait();
                     lastHighest = range.Item2;
                 }
+
+                if (cursorUpdate != null)
+                {
+                    await cursorUpdate;
+                }
+
+                // wait for the batch to write
                 batcher.Complete().Wait();
+
+                // update the cursor
+                JObject obj = new JObject();
+                obj.Add("lastHighest", lastHighest);
+                cursorUpdate = Cursor.Update(DateTime.UtcNow, obj);
             }
 
-            using (SqlConnection connection = new SqlConnection(Config.GetProperty("GalleryConnectionString")))
+            if (cursorUpdate != null)
             {
-                connection.Open();
-
-                SqlCommand command = new SqlCommand(_cmdText, connection);
-                command.Parameters.AddWithValue("since", start);
-                command.Parameters.AddWithValue("end", end);
-
-                SqlDataReader reader = command.ExecuteReader();
-
-                Task queueTask = null;
-
-                while (reader.Read())
-                {
-                    string version = reader.GetString(0);
-                    string id = reader.GetString(1);
-                    DateTime created = reader.GetDateTime(2);
-                    string nupkgName = string.Format("{0}.{1}.nupkg", id, version).ToLowerInvariant();
-
-                    JObject summary = new JObject();
-                    summary.Add("id", id);
-                    summary.Add("version", version);
-                    summary.Add("created", created.ToString("O"));
-                    summary.Add("nupkg", nupkgName);
-                    summary.Add("submitted", DateTime.UtcNow.ToString("O"));
-                    summary.Add("failures", 0);
-                    summary.Add("host", Host);
-
-                    if (queueTask != null)
-                    {
-                        await queueTask;
-                    }
-
-                    queueTask = queue.AddMessageAsync(new CloudQueueMessage(summary.ToString()));
-
-                    Log("Reporting upload: " + nupkgName);
-                }
-
-                if (queueTask != null)
-                {
-                    await queueTask;
-                }
+                await cursorUpdate;
             }
+        }
+
+        // Add the page that was created to the queue for processing later
+        private void QueuePage(Uri uri, CloudQueue queue)
+        {
+            JObject summary = new JObject();
+            summary.Add("uri", uri.AbsoluteUri);
+            summary.Add("submitted", DateTime.UtcNow.ToString("O"));
+            summary.Add("failures", 0);
+            summary.Add("host", Host);
+
+            queue.AddMessage(new CloudQueueMessage(summary.ToString()));
+
+            Log("Gallery page created: " + uri.AbsoluteUri);
         }
     }
 }

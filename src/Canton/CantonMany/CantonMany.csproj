@@ -48,7 +48,7 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\DistributedMetadata\CantonLib.csproj">
+    <ProjectReference Include="..\CantonLib\CantonLib.csproj">
       <Project>{291ce865-a96f-4e13-8840-3903f117c689}</Project>
       <Name>CantonLib</Name>
     </ProjectReference>

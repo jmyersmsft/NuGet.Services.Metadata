@@ -79,11 +79,14 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="CantonCatalogItem.cs" />
     <Compile Include="CantonCursor.cs" />
     <Compile Include="CantonUtilities.cs" />
     <Compile Include="Config.cs" />
     <Compile Include="CantonConstants.cs" />
     <Compile Include="CursorEntry.cs" />
+    <Compile Include="CatalogPageCreator.cs" />
+    <Compile Include="GalleryPageCreator.cs" />
     <Compile Include="jobs\CantonJob.cs" />
     <Compile Include="jobs\CollectorJob.cs" />
     <Compile Include="jobs\InitStorageJob.cs" />

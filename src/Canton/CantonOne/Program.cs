@@ -26,6 +26,7 @@ namespace NuGet.Canton.One
 
             Queue<CantonJob> jobs = new Queue<CantonJob>();
             jobs.Enqueue(new InitStorageJob(config));
+            jobs.Enqueue(new QueueNewPackagesFromGallery(config));
 
             Stopwatch timer = new Stopwatch();
             // avoid flooding the gallery
