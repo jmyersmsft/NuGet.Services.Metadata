@@ -28,6 +28,10 @@ namespace NuGet.Canton
         /// </summary>
         public const string CursorTable = "cantoncursors";
 
+        /// <summary>
+        /// Canton schema base #
+        /// </summary>
+        public const string CantonSchema = "http://schema.nuget.org/canton#";
 
         public static readonly DateTime MinSupportedDateTime = DateTime.FromFileTimeUtc(0);
     }

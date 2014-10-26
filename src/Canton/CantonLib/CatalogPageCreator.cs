@@ -13,7 +13,13 @@ namespace NuGet.Canton
         private Action<Uri> _itemComplete;
 
         public CatalogPageCreator(Storage storage, Action<Uri> itemComplete)
-            : base(storage)
+            : this (storage, itemComplete, Enumerable.Empty<GraphAddon>())
+        {
+
+        }
+
+        public CatalogPageCreator(Storage storage, Action<Uri> itemComplete, IEnumerable<GraphAddon> addons)
+            : base(storage, addons)
         {
             _itemComplete = itemComplete;
             _threads = 8;

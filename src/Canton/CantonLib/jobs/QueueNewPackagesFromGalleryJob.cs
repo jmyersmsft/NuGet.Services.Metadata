@@ -57,8 +57,7 @@ namespace NuGet.Canton
             Task cursorUpdate = null;
 
             // Load storage
-            Storage storage = new AzureStorage(Account, Config.GetProperty("GalleryPageContainer"));
-            using (var writer = new GalleryPageCreator(storage, handler))
+            using (var writer = new GalleryPageCreator(Storage, handler))
             {
                 var batcher = new GalleryExportBatcher(BatchSize, writer);
                 while (true)
@@ -92,6 +91,8 @@ namespace NuGet.Canton
                 // update the cursor
                 JObject obj = new JObject();
                 obj.Add("lastHighest", lastHighest);
+
+                // keep track of the order we added these in so that the catalog writer can put them back into order
                 obj.Add("cantonCommitId", _cantonCommitId);
                 cursorUpdate = Cursor.Update(DateTime.UtcNow, obj);
             }

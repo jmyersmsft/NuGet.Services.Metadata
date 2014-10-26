@@ -91,6 +91,8 @@
     <Compile Include="CantonConstants.cs" />
     <Compile Include="CursorEntry.cs" />
     <Compile Include="jobs\CatalogPageCommitJob.cs" />
+    <Compile Include="jobs\CursorQueueFedJob.cs" />
+    <Compile Include="OriginGraphAddon.cs" />
     <Compile Include="PageCreator.cs" />
     <Compile Include="GalleryPageCreator.cs" />
     <Compile Include="jobs\CantonJob.cs" />

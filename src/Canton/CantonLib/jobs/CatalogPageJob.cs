@@ -31,7 +31,6 @@ namespace NuGet.Canton
 
             CloudQueueMessage message = Queue.GetMessage(hold);
 
-            AzureStorage storage = new AzureStorage(Account, Config.GetProperty("CatalogContainer"));
             var qClient = Account.CreateCloudQueueClient();
             var queue = qClient.GetQueueReference(CantonConstants.CatalogPageQueue);
 
@@ -40,6 +39,9 @@ namespace NuGet.Canton
                 JObject work = JObject.Parse(message.AsString);
                 Uri galleryPageUri = new Uri(work["uri"].ToString());
                 int cantonCommitId = work["cantonCommitId"].ToObject<int>();
+                Log("started cantonCommitId: " + cantonCommitId);
+
+                GraphAddon[] addons = new GraphAddon[] { new OriginGraphAddon(galleryPageUri.AbsoluteUri, cantonCommitId) };
 
                 // read the gallery page
                 JObject galleryPage = await GetJson(galleryPageUri);
@@ -62,8 +64,8 @@ namespace NuGet.Canton
                 // create the new catalog item
                 using (var stream = nupkg.OpenRead())
                 {
-                    // Create the catalog page and index section only
-                    using (CatalogPageCreator writer = new CatalogPageCreator(storage, handler))
+                    // Create the core catalog page graph and upload it
+                    using (CatalogPageCreator writer = new CatalogPageCreator(Storage, handler, addons))
                     {
                         CatalogItem catalogItem = Utils.CreateCatalogItem(stream, published, null, nupkg.FullName);
                         writer.Add(catalogItem);
@@ -83,12 +85,12 @@ namespace NuGet.Canton
         private void QueuePage(Uri resourceUri, Uri itemType, int cantonCommitId, CloudQueue queue)
         {
             JObject summary = new JObject();
-            summary.Add("uri", resourceUri.AbsoluteUri);
             summary.Add("itemType", itemType.AbsoluteUri);
             summary.Add("submitted", DateTime.UtcNow.ToString("O"));
             summary.Add("failures", 0);
             summary.Add("host", Host);
             summary.Add("cantonCommitId", cantonCommitId);
+            Log("finished cantonCommitId: " + cantonCommitId);
 
             queue.AddMessage(new CloudQueueMessage(summary.ToString()));
 
@@ -117,6 +119,7 @@ namespace NuGet.Canton
 
         private async Task<FileInfo> GetNupkg(string id, string version)
         {
+            // TODO: Use the MD5 hash on the prod packgae to see if we have the current one
 
             //NuGetVersion nugetVersion = new NuGetVersion(version);
 
@@ -158,11 +161,6 @@ namespace NuGet.Canton
             }
 
             return file;
-        }
-
-        private void CreatePage()
-        {
-
         }
     }
 }

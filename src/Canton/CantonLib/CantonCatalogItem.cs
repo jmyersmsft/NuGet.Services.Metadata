@@ -1,4 +1,5 @@
-﻿using Microsoft.WindowsAzure.Storage.Blob;
+﻿using Microsoft.WindowsAzure.Storage;
+using Microsoft.WindowsAzure.Storage.Blob;
 using NuGet.Services.Metadata.Catalog;
 using NuGet.Services.Metadata.Catalog.Maintenance;
 using NuGet.Services.Metadata.Catalog.Persistence;
@@ -15,28 +16,38 @@ using VDS.RDF.Parsing;
 
 namespace NuGet.Canton
 {
+    /// <summary>
+    /// Background loading pre-built page
+    /// </summary>
     public class CantonCatalogItem : PackageCatalogItem, IDisposable
     {
         private ICloudBlob _blob;
         private Task _task;
         private ManualResetEventSlim _sem;
+        private CloudStorageAccount _account;
+        private Uri _uri;
 
         // the catalog writer will dipose of this
         private Graph _graph;
 
-        public CantonCatalogItem(ICloudBlob blob)
+        public CantonCatalogItem(CloudStorageAccount account, Uri uri)
             : base()
         {
-            _blob = blob;
+            _uri = uri;
+            _account = account;
             _sem = new ManualResetEventSlim();
             _task = Task.Run(() => LoadGraph());
         }
 
         private void LoadGraph()
         {
+            var client = _account.CreateCloudBlobClient();
+            _blob = client.GetBlobReferenceFromServer(_uri);
+
             using (MemoryStream stream = new MemoryStream())
             {
                 _blob.DownloadToStream(stream);
+                stream.Seek(0, SeekOrigin.Begin);
 
                 _graph = new Graph();
 
@@ -50,6 +61,13 @@ namespace NuGet.Canton
             SetIdVersionFromGraph(_graph);
 
             _sem.Set();
+        }
+
+        public async Task DeleteBlob()
+        {
+            _sem.Wait();
+
+            await _blob.DeleteIfExistsAsync();
         }
 
         protected override XDocument GetNuspec()

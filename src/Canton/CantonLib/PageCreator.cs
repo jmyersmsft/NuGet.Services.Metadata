@@ -17,11 +17,18 @@ namespace NuGet.Canton
     public class PageCreator : AppendOnlyCatalogWriter
     {
         protected int _threads = 8;
+        private IEnumerable<GraphAddon> _addons;
 
         public PageCreator(Storage storage)
-            : base(storage)
+            : this(storage, Enumerable.Empty<GraphAddon>())
         {
 
+        }
+
+        public PageCreator(Storage storage, IEnumerable<GraphAddon> addons)
+            : base(storage)
+        {
+            _addons = addons;
         }
 
         public override async Task Commit(DateTime commitTimeStamp, IGraph commitMetadata = null)
@@ -94,6 +101,17 @@ namespace NuGet.Canton
 
             using (IGraph graph = item.CreateContentGraph(Context))
             {
+                if (_addons != null)
+                {
+                    INode rdfTypePredicate = graph.CreateUriNode(Schema.Predicates.Type);
+                    Triple resource = graph.GetTriplesWithPredicateObject(rdfTypePredicate, graph.CreateUriNode(item.GetItemType())).First();
+
+                    foreach (var addon in _addons)
+                    {
+                        addon.ApplyToGraph(graph, (IUriNode)resource.Subject);
+                    }
+                }
+
                 SaveGraph(graph, tmpUri).Wait();
             }
 

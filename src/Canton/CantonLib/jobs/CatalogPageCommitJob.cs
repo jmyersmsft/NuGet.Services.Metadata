@@ -7,14 +7,17 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace NuGet.Canton
 {
-    public class CatalogPageCommitJob : QueueFedJob
+    public class CatalogPageCommitJob : CursorQueueFedJob
     {
+        private const int BatchSize = 64;
+
         public CatalogPageCommitJob(Config config, Storage storage)
-            : base(config, storage, CantonConstants.CatalogPageQueue)
+            : base(config, storage, CantonConstants.CatalogPageQueue, "catalogpagecommit")
         {
 
         }
@@ -24,7 +27,12 @@ namespace NuGet.Canton
             TimeSpan hold = TimeSpan.FromMinutes(90);
             int cantonCommitId = 0;
 
-            AzureStorage storage = new AzureStorage(Account, Config.GetProperty("CatalogContainer"));
+            JToken cantonCommitIdToken = null;
+            if (Cursor.Metadata.TryGetValue("cantonCommitId", out cantonCommitIdToken))
+            {
+                cantonCommitId = cantonCommitIdToken.ToObject<int>();
+            }
+
             var qClient = Account.CreateCloudQueueClient();
             var queue = qClient.GetQueueReference(CantonConstants.CatalogPageQueue);
 
@@ -33,9 +41,12 @@ namespace NuGet.Canton
 
             var blobClient = Account.CreateCloudBlobClient();
 
-            using (AppendOnlyCatalogWriter writer = new AppendOnlyCatalogWriter(storage, 600))
+            using (AppendOnlyCatalogWriter writer = new AppendOnlyCatalogWriter(Storage, 600))
             {
                 var messages = queue.GetMessages(32, hold).ToList();
+
+                // tasks that will be waited on as part of the commit
+                Queue<Task> tasks = new Queue<Task>();
 
                 // everything must run in canton commit order!
                 while (messages.Count > 0 || extraMessages.Count > 0 || orderedMessages.Count > 0)
@@ -57,31 +68,58 @@ namespace NuGet.Canton
                     while (orderedMessages.Count > 0)
                     {
                         var curTuple = orderedMessages.Dequeue();
+                        cantonCommitId = curTuple.Item1;
                         var message = curTuple.Item2;
 
                         JObject work = JObject.Parse(message.AsString);
                         Uri resourceUri = new Uri(work["uri"].ToString());
 
-                        ICloudBlob blob = blobClient.GetBlobReferenceFromServer(resourceUri);
-
-                        CantonCatalogItem item = new CantonCatalogItem(blob);
+                        // the page is loaded from storage in the background
+                        CantonCatalogItem item = new CantonCatalogItem(Account, resourceUri);
                         writer.Add(item);
 
-                        // get the next work item
-                        Queue.DeleteMessage(message);
+                        // remove tmp page
+                        tasks.Enqueue(item.DeleteBlob());
 
-                        if (writer.Count >= 600)
+                        // get the next work item
+                        tasks.Enqueue(Queue.DeleteMessageAsync(message));
+
+                        if (writer.Count >= BatchSize)
                         {
-                            await writer.Commit();
+                            tasks.Enqueue(writer.Commit());
+
+                            // update the cursor
+                            JObject obj = new JObject();
+                            obj.Add("cantonCommitId", cantonCommitId);
+                            Log("cantonCommitId: " + cantonCommitId);
+                            tasks.Enqueue(Cursor.Update(DateTime.UtcNow, obj));
+
+                            Task.WaitAll(tasks.ToArray());
+                            tasks.Clear();
                         }
                     }
 
                     messages = queue.GetMessages(32, hold).ToList();
+
+                    if (messages.Count < 1)
+                    {
+                        // avoid getting out of control when the pages aren't ready yet
+                        Thread.Sleep(TimeSpan.FromMinutes(1));
+                    }
                 }
 
                 if (writer.Count > 0)
                 {
-                    await writer.Commit();
+                    tasks.Enqueue(writer.Commit());
+
+                    // update the cursor
+                    JObject obj = new JObject();
+                    obj.Add("cantonCommitId", cantonCommitId);
+                    Log("cantonCommitId: " + cantonCommitId);
+                    tasks.Enqueue(Cursor.Update(DateTime.UtcNow, obj));
+
+                    Task.WaitAll(tasks.ToArray());
+                    tasks.Clear();
                 }
             }
         }
