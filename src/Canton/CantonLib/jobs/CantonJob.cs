@@ -1,5 +1,6 @@
 ﻿using Microsoft.WindowsAzure.Storage;
 using NuGet.Services.Metadata.Catalog.Collecting;
+using NuGet.Services.Metadata.Catalog.Persistence;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -16,16 +17,18 @@ namespace NuGet.Canton
     {
         private readonly Stopwatch _runTime;
         private CloudStorageAccount _account;
+        private Storage _storage;
         private Config _config;
         private readonly string _host;
 
-        public CantonJob(Config config)
+        public CantonJob(Config config, Storage storage)
         {
             if (config == null)
             {
                 throw new ArgumentNullException("config");
             }
 
+            _storage = storage;
             _config = config;
 
             _runTime = new Stopwatch();
@@ -106,6 +109,14 @@ namespace NuGet.Canton
             get
             {
                 return _host;
+            }
+        }
+
+        protected Storage Storage
+        {
+            get
+            {
+                return _storage;
             }
         }
     }

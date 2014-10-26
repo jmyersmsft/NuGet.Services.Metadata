@@ -1,5 +1,6 @@
 ﻿using Microsoft.WindowsAzure.Storage;
 using NuGet.Services.Metadata.Catalog.Collecting;
+using NuGet.Services.Metadata.Catalog.Persistence;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,8 +14,8 @@ namespace NuGet.Canton
         private CantonCursor _cursor;
         private string _cursorName;
 
-        public CollectorJob(Config config, string cursorName)
-            : base(config)
+        public CollectorJob(Config config, Storage storage, string cursorName)
+            : base(config, storage)
         {
             _cursorName = cursorName;
         }

@@ -24,8 +24,8 @@ namespace NuGet.Canton
         private const int BatchSize = 2000;
         private int _cantonCommitId = 0;
 
-        public QueueNewPackagesFromGallery(Config config)
-            : base(config, CursorName)
+        public QueueNewPackagesFromGallery(Config config, Storage storage)
+            : base(config, storage, CursorName)
         {
 
         }
@@ -49,7 +49,7 @@ namespace NuGet.Canton
             DateTime end = DateTime.UtcNow.Subtract(TimeSpan.FromMinutes(15));
 
             var client = Account.CreateCloudQueueClient();
-            var queue = client.GetQueueReference(CantonConstants.UploadQueue);
+            var queue = client.GetQueueReference(CantonConstants.GalleryPages);
             string dbConnStr = Config.GetProperty("GalleryConnectionString");
 
             Action<Uri> handler = (resourceUri) => QueuePage(resourceUri, queue);

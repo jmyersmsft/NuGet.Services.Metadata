@@ -1,5 +1,6 @@
 ﻿using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Queue;
+using NuGet.Services.Metadata.Catalog.Persistence;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,8 +14,8 @@ namespace NuGet.Canton
         private readonly string _queueName;
         private CloudQueue _queue;
 
-        public QueueFedJob(Config config, string queueName)
-            : base(config)
+        public QueueFedJob(Config config, Storage storage, string queueName)
+            : base(config, storage)
         {
             _queueName = queueName;
         }

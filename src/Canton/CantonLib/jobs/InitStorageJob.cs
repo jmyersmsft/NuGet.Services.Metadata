@@ -1,6 +1,7 @@
 ﻿using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 using Microsoft.WindowsAzure.Storage.Queue;
+using NuGet.Services.Metadata.Catalog.Persistence;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -16,7 +17,7 @@ namespace NuGet.Canton
         private static bool _complete = false;
 
         public InitStorageJob(Config config)
-            : base(config)
+            : base(config, null)
         {
 
         }
@@ -29,7 +30,7 @@ namespace NuGet.Canton
 
                 var queueClient = Account.CreateCloudQueueClient();
 
-                await CreateQueue(queueClient, CantonConstants.UploadQueue);
+                await CreateQueue(queueClient, CantonConstants.GalleryPages);
                 await CreateQueue(queueClient, CantonConstants.CatalogCommitQueue);
                 await CreateQueue(queueClient, CantonConstants.CatalogPageQueue);
 

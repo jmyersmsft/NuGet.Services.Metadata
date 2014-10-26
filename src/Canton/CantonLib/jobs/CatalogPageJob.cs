@@ -19,8 +19,8 @@ namespace NuGet.Canton
     {
         private CloudStorageAccount _packagesStorageAccount;
 
-        public CatalogPageJob(Config config, string queueName)
-            : base(config, queueName)
+        public CatalogPageJob(Config config, Storage storage, string queueName)
+            : base(config, storage, queueName)
         {
             _packagesStorageAccount = CloudStorageAccount.Parse(config.GetProperty("PackagesStorageConnectionString"));
         }
@@ -83,7 +83,7 @@ namespace NuGet.Canton
         private void QueuePage(Uri resourceUri, Uri itemType, int cantonCommitId, CloudQueue queue)
         {
             JObject summary = new JObject();
-            summary.Add("resourceUri", resourceUri.AbsoluteUri);
+            summary.Add("uri", resourceUri.AbsoluteUri);
             summary.Add("itemType", itemType.AbsoluteUri);
             summary.Add("submitted", DateTime.UtcNow.ToString("O"));
             summary.Add("failures", 0);

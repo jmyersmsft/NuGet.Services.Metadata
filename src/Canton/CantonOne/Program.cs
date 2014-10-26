@@ -6,6 +6,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using NuGet.Canton;
+using NuGet.Services.Metadata.Catalog.Persistence;
+using Microsoft.WindowsAzure.Storage;
 
 namespace NuGet.Canton.One
 {
@@ -26,13 +28,22 @@ namespace NuGet.Canton.One
 
             Config config = new Config(args[0]);
 
+            CloudStorageAccount account = CloudStorageAccount.Parse(config.GetProperty("StorageConnectionString"));
+
             Queue<CantonJob> jobs = new Queue<CantonJob>();
+
+            // set up the storage account
             jobs.Enqueue(new InitStorageJob(config));
-            jobs.Enqueue(new QueueNewPackagesFromGallery(config));
+
+            // read the gallery to find new packages
+            jobs.Enqueue(new QueueNewPackagesFromGallery(config, new AzureStorage(account, config.GetProperty("GalleryPageContainer"))));
+
+            // commit pages to the catalog
+            jobs.Enqueue(new CatalogPageCommitJob(config, new AzureStorage(account, config.GetProperty("CatalogContainer"))));
 
             Stopwatch timer = new Stopwatch();
             // avoid flooding the gallery
-            TimeSpan minWait = TimeSpan.FromMinutes(10);
+            TimeSpan minWait = TimeSpan.FromMinutes(30);
 
             while (true)
             {

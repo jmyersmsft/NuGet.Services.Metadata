@@ -13,8 +13,8 @@ namespace NuGet.Services.Metadata.Catalog.Maintenance
 {
     public abstract class PackageCatalogItem : AppendOnlyCatalogItem
     {
-        string _id;
-        string _version;
+        protected string _id;
+        protected string _version;
 
         protected abstract XDocument GetNuspec();
 
@@ -110,10 +110,24 @@ namespace NuGet.Services.Metadata.Catalog.Maintenance
             }
 
             //  identity and version
+            SetIdVersionFromGraph(graph);
 
+            // apply addons
+            foreach (GraphAddon addon in GetAddons())
+            {
+                addon.ApplyToGraph(graph, (IUriNode)resource.Subject);
+            }
+
+            return graph;
+        }
+
+        protected void SetIdVersionFromGraph(IGraph graph)
+        {
             INode idPredicate = graph.CreateUriNode(Schema.Predicates.Id);
             INode versionPredicate = graph.CreateUriNode(Schema.Predicates.Version);
 
+            INode rdfTypePredicate = graph.CreateUriNode(Schema.Predicates.Type);
+            Triple resource = graph.GetTriplesWithPredicateObject(rdfTypePredicate, graph.CreateUriNode(GetItemType())).First();
             Triple id = graph.GetTriplesWithSubjectPredicate(resource.Subject, idPredicate).FirstOrDefault();
             if (id != null)
             {
@@ -125,14 +139,6 @@ namespace NuGet.Services.Metadata.Catalog.Maintenance
             {
                 _version = ((ILiteralNode)version.Object).Value;
             }
-
-            // apply addons
-            foreach (GraphAddon addon in GetAddons())
-            {
-                addon.ApplyToGraph(graph, (IUriNode)resource.Subject);
-            }
-
-            return graph;
         }
 
         public override StorageContent CreateContent(CatalogContext context)
