@@ -57,9 +57,13 @@ namespace NuGet.Canton
                         extraMessages.Add(new Tuple<int, CloudQueueMessage>(json["cantonCommitId"].ToObject<int>(), message));
                     }
 
+                    // TODO: optimize this search
                     while (extraMessages.Select(t => t.Item1).Any(x => x == cantonCommitId))
                     {
                         var cur = extraMessages.Where(t => t.Item1 == cantonCommitId).Single();
+
+                        // increment now that we found what we needed
+                        cantonCommitId++;
 
                         extraMessages.Remove(cur);
                         orderedMessages.Enqueue(cur);

@@ -54,8 +54,6 @@ namespace NuGet.Canton
 
             Action<Uri> handler = (resourceUri) => QueuePage(resourceUri, queue);
 
-            Task cursorUpdate = null;
-
             // Load storage
             using (var writer = new GalleryPageCreator(Storage, handler))
             {
@@ -78,11 +76,9 @@ namespace NuGet.Canton
                         range,
                         batcher).Wait();
                     lastHighest = range.Item2;
-                }
 
-                if (cursorUpdate != null)
-                {
-                    await cursorUpdate;
+                    Log("Just one batch, remove this later!!!");
+                    break; //one batch at a time REMOVE THIS LATER!!!!
                 }
 
                 // wait for the batch to write
@@ -97,12 +93,7 @@ namespace NuGet.Canton
 
                 Cursor.Position = DateTime.UtcNow;
                 Cursor.Metadata = obj;
-                cursorUpdate = Cursor.Save();
-            }
-
-            if (cursorUpdate != null)
-            {
-                await cursorUpdate;
+                await Cursor.Save();
             }
         }
 

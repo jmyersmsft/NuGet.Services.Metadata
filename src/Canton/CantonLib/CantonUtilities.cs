@@ -102,14 +102,19 @@ namespace NuGet.Canton
             }
         }
 
+        private static readonly object _lockObj = new object();
         public static void Log(string message, string file)
         {
-            using (var writer = new StreamWriter(file))
-            {
-                writer.WriteLine(String.Format(CultureInfo.InvariantCulture, "[{0}] {1}", DateTime.UtcNow.ToString("O"), message));
-            }
 
-            Console.WriteLine(message);
+            lock (_lockObj)
+            {
+                using (var writer = new StreamWriter(file, true))
+                {
+                    writer.WriteLine(String.Format(CultureInfo.InvariantCulture, "[{0}] {1}", DateTime.UtcNow.ToString("O"), message));
+                }
+
+                Console.WriteLine(message);
+            }
         }
     }
 }
