@@ -20,7 +20,7 @@ namespace NuGet.Canton
             _threads = 64;
         }
 
-        protected virtual Uri CreateCatalogPage(CatalogItem item)
+        protected override Uri CreateCatalogPage(CatalogItem item)
         {
             // save the content to a non-temp location
             StorageContent content = item.CreateContent(Context);

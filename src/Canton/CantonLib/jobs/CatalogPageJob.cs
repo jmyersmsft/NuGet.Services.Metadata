@@ -12,6 +12,8 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using VDS.RDF;
+using VDS.RDF.Parsing;
 
 namespace NuGet.Canton
 {
@@ -107,10 +109,12 @@ namespace NuGet.Canton
             using (MemoryStream stream = new MemoryStream())
             {
                 await galleryBlob.DownloadToStreamAsync(stream);
+                stream.Seek(0, SeekOrigin.Begin);
 
                 using (StreamReader reader = new StreamReader(stream))
                 {
-                    json = JObject.Parse(reader.ReadToEnd());
+                    string s = reader.ReadToEnd();
+                    json = JObject.Parse(s);
                 }
             }
 
@@ -152,7 +156,7 @@ namespace NuGet.Canton
                     await prodBlob.DownloadToFileAsync(file.FullName, FileMode.CreateNew);
 
                     // store this in tmp also
-                    await tmpBlob.UploadFromFileAsync(file.FullName, FileMode.CreateNew);
+                    await tmpBlob.UploadFromFileAsync(file.FullName, FileMode.Open);
                 }
                 else
                 {

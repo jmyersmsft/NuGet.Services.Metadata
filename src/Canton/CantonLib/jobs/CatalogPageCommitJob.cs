@@ -92,7 +92,10 @@ namespace NuGet.Canton
                             JObject obj = new JObject();
                             obj.Add("cantonCommitId", cantonCommitId);
                             Log("cantonCommitId: " + cantonCommitId);
-                            tasks.Enqueue(Cursor.Update(DateTime.UtcNow, obj));
+
+                            Cursor.Position = DateTime.UtcNow;
+                            Cursor.Metadata = obj;
+                            tasks.Enqueue(Cursor.Save());
 
                             Task.WaitAll(tasks.ToArray());
                             tasks.Clear();
@@ -116,7 +119,10 @@ namespace NuGet.Canton
                     JObject obj = new JObject();
                     obj.Add("cantonCommitId", cantonCommitId);
                     Log("cantonCommitId: " + cantonCommitId);
-                    tasks.Enqueue(Cursor.Update(DateTime.UtcNow, obj));
+
+                    Cursor.Position = DateTime.UtcNow;
+                    Cursor.Metadata = obj;
+                    tasks.Enqueue(Cursor.Save());
 
                     Task.WaitAll(tasks.ToArray());
                     tasks.Clear();

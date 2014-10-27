@@ -75,6 +75,8 @@ namespace NuGet.Canton
 
                     CommitItemComplete(catalogPageUri);
 
+                    resourceUri = item.GetItemAddress();
+
                     //if (catalogPageUri != null)
                     //{
                     //    Uri indexPageUri = CreateIndexEntry(item, catalogPageUri, commitId, commitTimeStamp);
@@ -88,7 +90,7 @@ namespace NuGet.Canton
                 }
                 catch (Exception e)
                 {
-                    throw new Exception(string.Format("item uri: {0}", resourceUri), e);
+                    throw new Exception(string.Format("item uri: {0}", resourceUri == null ? "none" : resourceUri.AbsoluteUri), e);
                 }
             });
 

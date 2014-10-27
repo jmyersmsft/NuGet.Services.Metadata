@@ -30,7 +30,7 @@ namespace NuGet.Canton
 
                 var queueClient = Account.CreateCloudQueueClient();
 
-                await CreateQueue(queueClient, CantonConstants.GalleryPages);
+                await CreateQueue(queueClient, CantonConstants.GalleryPagesQueue);
                 await CreateQueue(queueClient, CantonConstants.CatalogCommitQueue);
                 await CreateQueue(queueClient, CantonConstants.CatalogPageQueue);
 

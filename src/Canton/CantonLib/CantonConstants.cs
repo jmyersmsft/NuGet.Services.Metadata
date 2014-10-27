@@ -11,7 +11,7 @@ namespace NuGet.Canton
         /// <summary>
         /// Contains the url of an uploaded nupkg, and the gallery details for it.
         /// </summary>
-        public const string GalleryPages = "cantongallerypages";
+        public const string GalleryPagesQueue = "cantongallerypages";
 
         /// <summary>
         /// Contains the url of finished catalog pages that need to be added to the index.

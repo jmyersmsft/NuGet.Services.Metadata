@@ -49,7 +49,7 @@ namespace NuGet.Canton
             DateTime end = DateTime.UtcNow.Subtract(TimeSpan.FromMinutes(15));
 
             var client = Account.CreateCloudQueueClient();
-            var queue = client.GetQueueReference(CantonConstants.GalleryPages);
+            var queue = client.GetQueueReference(CantonConstants.GalleryPagesQueue);
             string dbConnStr = Config.GetProperty("GalleryConnectionString");
 
             Action<Uri> handler = (resourceUri) => QueuePage(resourceUri, queue);
@@ -94,7 +94,10 @@ namespace NuGet.Canton
 
                 // keep track of the order we added these in so that the catalog writer can put them back into order
                 obj.Add("cantonCommitId", _cantonCommitId);
-                cursorUpdate = Cursor.Update(DateTime.UtcNow, obj);
+
+                Cursor.Position = DateTime.UtcNow;
+                Cursor.Metadata = obj;
+                cursorUpdate = Cursor.Save();
             }
 
             if (cursorUpdate != null)

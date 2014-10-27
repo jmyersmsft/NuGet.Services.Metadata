@@ -32,7 +32,7 @@ namespace NuGet.Canton
             Queue<CantonJob> jobs = new Queue<CantonJob>();
 
             // process gallery pages and nupkgs into catalog pages
-            jobs.Enqueue(new CatalogPageJob(config, new AzureStorage(account, config.GetProperty("tmp")), CantonConstants.CatalogPageQueue));
+            jobs.Enqueue(new CatalogPageJob(config, new AzureStorage(account, config.GetProperty("tmp")), CantonConstants.GalleryPagesQueue));
 
             Stopwatch timer = new Stopwatch();
 

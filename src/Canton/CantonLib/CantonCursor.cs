@@ -53,7 +53,7 @@ namespace NuGet.Canton
             if (result.Result == null)
             {
                 _position = CantonConstants.MinSupportedDateTime;
-                await Update(_position);
+                await Save();
             }
             else
             {
@@ -80,10 +80,8 @@ namespace NuGet.Canton
         /// <summary>
         /// Saves the cursor to storage. Make sure ALL items with this position have been completed first.
         /// </summary>
-        public async Task Update(DateTime position, JObject metadata = null)
+        public async Task Save()
         {
-            _position = position;
-
             var client = _account.CreateCloudTableClient();
             var table = client.GetTableReference(CantonConstants.CursorTable);
 
@@ -109,6 +107,10 @@ namespace NuGet.Canton
             {
                 return _position;
             }
+            set
+            {
+                _position = value;
+            }
         }
 
         public List<string> DependantCursors
@@ -117,6 +119,10 @@ namespace NuGet.Canton
             {
                 return _dependantCursors;
             }
+            set
+            {
+                _dependantCursors = value;
+            }
         }
 
         public JObject Metadata
@@ -124,6 +130,10 @@ namespace NuGet.Canton
             get
             {
                 return _metadata;
+            }
+            set
+            {
+                _metadata = value;
             }
         }
     }
