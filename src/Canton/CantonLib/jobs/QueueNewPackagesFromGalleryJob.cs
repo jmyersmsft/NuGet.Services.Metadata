@@ -22,7 +22,7 @@ namespace NuGet.Canton
     public class QueueNewPackagesFromGallery : CollectorJob
     {
         public const string CursorName = "queuenewpackagesfromgallery";
-        private const int BatchSize = 50;
+        private const int BatchSize = 2000;
         private int _cantonCommitId = 0;
         private ConcurrentQueue<Task> _queueTasks;
 
@@ -86,8 +86,8 @@ namespace NuGet.Canton
                         curTask.Wait();
                     }
 
-                    Log("Just one batch, remove this later!!!");
-                    break; //one batch at a time REMOVE THIS LATER!!!!
+                    //Log("Just one batch, remove this later!!!");
+                    //break; //one batch at a time REMOVE THIS LATER!!!!
                 }
 
                 // wait for the batch to write

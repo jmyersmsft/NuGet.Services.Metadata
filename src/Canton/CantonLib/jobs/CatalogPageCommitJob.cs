@@ -66,6 +66,7 @@ namespace NuGet.Canton
                         else
                         {
                             LogError("Ignoring old cantonCommitId: " + id + " We are on: " + cantonCommitId);
+                            tasks.Enqueue(Queue.DeleteMessageAsync(message));
                         }
                     }
 
@@ -123,8 +124,9 @@ namespace NuGet.Canton
                         Log("PageCommitJob Waiting for: " + cantonCommitId);
                         Thread.Sleep(TimeSpan.FromSeconds(10));
 
-                        // just give up after 15 minutes 
-                        if (giveup.Elapsed > TimeSpan.FromMinutes(15))
+                        // just give up after 5 minutes 
+                        // TODO: handle this better
+                        if (giveup.Elapsed > TimeSpan.FromMinutes(5))
                         {
                             while (!unQueuedMessages.ContainsKey(cantonCommitId))
                             {
