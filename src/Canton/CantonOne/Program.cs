@@ -33,16 +33,19 @@ namespace NuGet.Canton.One
             Queue<CantonJob> jobs = new Queue<CantonJob>();
 
             // set up the storage account
-            jobs.Enqueue(new InitStorageJob(config));
+            //jobs.Enqueue(new InitStorageJob(config));
 
             // read the gallery to find new packages
-            jobs.Enqueue(new QueueNewPackagesFromGallery(config, new AzureStorage(account, config.GetProperty("GalleryPageContainer"))));
+            //jobs.Enqueue(new QueueNewPackagesFromGallery(config, new AzureStorage(account, config.GetProperty("GalleryPageContainer"))));
 
             // tmp
-            jobs.Enqueue(new CatalogPageJob(config, new AzureStorage(account, config.GetProperty("tmp")), CantonConstants.GalleryPagesQueue));
+            //jobs.Enqueue(new CatalogPageJob(config, new AzureStorage(account, config.GetProperty("tmp")), CantonConstants.GalleryPagesQueue));
 
             // commit pages to the catalog
-            jobs.Enqueue(new CatalogPageCommitJob(config, new AzureStorage(account, config.GetProperty("CatalogContainer"))));
+            //jobs.Enqueue(new CatalogPageCommitJob(config, new AzureStorage(account, config.GetProperty("CatalogContainer"))));
+
+            // create registration blobs
+            jobs.Enqueue(new RegistrationJob(config, new AzureStorage(account, config.GetProperty("RegistrationContainer")), new AzureStorageFactory(account, config.GetProperty("RegistrationContainer"))));
 
             Stopwatch timer = new Stopwatch();
             // avoid flooding the gallery
