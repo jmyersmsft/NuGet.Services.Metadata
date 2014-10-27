@@ -86,8 +86,8 @@ namespace NuGet.Canton
                         curTask.Wait();
                     }
 
-                    //Log("Just one batch, remove this later!!!");
-                    //break; //one batch at a time REMOVE THIS LATER!!!!
+                    Log("Just one batch, remove this later!!!");
+                    break; //one batch at a time REMOVE THIS LATER!!!!
                 }
 
                 // wait for the batch to write
