@@ -87,6 +87,7 @@ namespace NuGet.Canton
         private void QueuePage(Uri resourceUri, Uri itemType, int cantonCommitId, CloudQueue queue)
         {
             JObject summary = new JObject();
+            summary.Add("uri", resourceUri.AbsoluteUri);
             summary.Add("itemType", itemType.AbsoluteUri);
             summary.Add("submitted", DateTime.UtcNow.ToString("O"));
             summary.Add("failures", 0);

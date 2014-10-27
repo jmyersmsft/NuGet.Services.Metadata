@@ -73,6 +73,35 @@ namespace NuGet.Canton
             }
         }
 
+        /// <summary>
+        /// Run a job multiple times in parallel
+        /// </summary>
+        public static void RunManyJobs(Queue<Func<CantonJob>> jobs, int instances)
+        {
+            try
+            {
+                foreach (var getJob in jobs)
+                {
+                    Stack<Task> tasks = new Stack<Task>(instances);
+
+                    for (int i = 0; i < instances; i++)
+                    {
+                        tasks.Push(Task.Run(() =>
+                            {
+                                CantonJob job = getJob();
+                                job.Run();
+                            }));
+                    }
+
+                    Task.WaitAll(tasks.ToArray());
+                }
+            }
+            catch (Exception ex)
+            {
+                Log(ex.ToString(), "canton-job-exceptions.txt");
+            }
+        }
+
         public static void Log(string message, string file)
         {
             using (var writer = new StreamWriter(file))

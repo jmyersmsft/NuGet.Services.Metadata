@@ -74,6 +74,8 @@ namespace NuGet.Canton
                         JObject work = JObject.Parse(message.AsString);
                         Uri resourceUri = new Uri(work["uri"].ToString());
 
+                        Log("Commiting: " + resourceUri.AbsoluteUri);
+
                         // the page is loaded from storage in the background
                         CantonCatalogItem item = new CantonCatalogItem(Account, resourceUri);
                         writer.Add(item);
