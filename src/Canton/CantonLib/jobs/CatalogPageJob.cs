@@ -6,6 +6,7 @@ using NuGet.Services.Metadata.Catalog.Maintenance;
 using NuGet.Services.Metadata.Catalog.Persistence;
 using NuGet.Versioning;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -20,67 +21,91 @@ namespace NuGet.Canton
     public class CatalogPageJob : QueueFedJob
     {
         private CloudStorageAccount _packagesStorageAccount;
+        private ConcurrentQueue<Task> _queueTasks;
 
         public CatalogPageJob(Config config, Storage storage, string queueName)
             : base(config, storage, queueName)
         {
             _packagesStorageAccount = CloudStorageAccount.Parse(config.GetProperty("PackagesStorageConnectionString"));
+            _queueTasks = new ConcurrentQueue<Task>();
         }
 
         public override async Task RunCore()
         {
             TimeSpan hold = TimeSpan.FromMinutes(90);
 
-            CloudQueueMessage message = Queue.GetMessage(hold);
+            var messages = Queue.GetMessages(32, hold).ToList();
 
             var qClient = Account.CreateCloudQueueClient();
             var queue = qClient.GetQueueReference(CantonConstants.CatalogPageQueue);
 
-            while (message != null)
+            while (messages.Count > 0)
             {
-                JObject work = JObject.Parse(message.AsString);
-                Uri galleryPageUri = new Uri(work["uri"].ToString());
-                int cantonCommitId = work["cantonCommitId"].ToObject<int>();
-                Log("started cantonCommitId: " + cantonCommitId);
-
-                GraphAddon[] addons = new GraphAddon[] { new OriginGraphAddon(galleryPageUri.AbsoluteUri, cantonCommitId) };
-
-                // read the gallery page
-                JObject galleryPage = await GetJson(galleryPageUri);
-
-                string id = galleryPage["id"].ToString();
-                string version = galleryPage["version"].ToString();
-
-                DateTime? published = null;
-                JToken publishedToken = null;
-                if (galleryPage.TryGetValue("published", out publishedToken))
+                foreach (var message in messages)
                 {
-                    published = DateTime.Parse(publishedToken.ToString());
-                }
+                    JObject work = JObject.Parse(message.AsString);
+                    Uri galleryPageUri = new Uri(work["uri"].ToString());
+                    int cantonCommitId = work["cantonCommitId"].ToObject<int>();
+                    Log("started cantonCommitId: " + cantonCommitId);
 
-                // download the nupkg
-                FileInfo nupkg = await GetNupkg(id, version);
+                    // read the gallery page
+                    JObject galleryPage = await GetJson(galleryPageUri);
 
-                Action<Uri> handler = (resourceUri) => QueuePage(resourceUri, Schema.DataTypes.PackageDetails, cantonCommitId, queue);
+                    // graph modififactions
+                    GraphAddon[] addons = new GraphAddon[] { 
+                        new OriginGraphAddon(galleryPageUri.AbsoluteUri, cantonCommitId),
+                        new GalleryGraphAddon(galleryPage)
+                    };
 
-                // create the new catalog item
-                using (var stream = nupkg.OpenRead())
-                {
-                    // Create the core catalog page graph and upload it
-                    using (CatalogPageCreator writer = new CatalogPageCreator(Storage, handler, addons))
+                    string id = galleryPage["id"].ToString();
+                    string version = galleryPage["version"].ToString();
+
+                    DateTime? published = null;
+                    JToken publishedToken = null;
+                    if (galleryPage.TryGetValue("published", out publishedToken))
                     {
-                        CatalogItem catalogItem = Utils.CreateCatalogItem(stream, published, null, nupkg.FullName);
-                        writer.Add(catalogItem);
-                        await writer.Commit(DateTime.UtcNow);
+                        published = DateTime.Parse(publishedToken.ToString());
                     }
-                }
 
-                // clean up
-                nupkg.Delete();
+                    // download the nupkg
+                    FileInfo nupkg = await GetNupkg(id, version);
+
+                    Action<Uri> handler = (resourceUri) => QueuePage(resourceUri, Schema.DataTypes.PackageDetails, cantonCommitId, queue);
+
+                    // create the new catalog item
+                    using (var stream = nupkg.OpenRead())
+                    {
+                        // Create the core catalog page graph and upload it
+                        using (CatalogPageCreator writer = new CatalogPageCreator(Storage, handler, addons))
+                        {
+                            CatalogItem catalogItem = Utils.CreateCatalogItem(stream, published, null, nupkg.FullName);
+                            writer.Add(catalogItem);
+                            await writer.Commit(DateTime.UtcNow);
+                        }
+                    }
+
+                    // clean up
+                    nupkg.Delete();
+
+                    _queueTasks.Enqueue(Queue.DeleteMessageAsync(message));
+                }
 
                 // get the next work item
-                Queue.DeleteMessage(message);
-                message = Queue.GetMessage(hold);
+                messages = Queue.GetMessages(32, hold).ToList();
+
+                // let deletes catch up
+                Task task = null;
+                while (_queueTasks.TryDequeue(out task))
+                {
+                    task.Wait();
+                }
+            }
+
+            // final wait
+            Task curTask = null;
+            while (_queueTasks.TryDequeue(out curTask))
+            {
+                curTask.Wait();
             }
         }
 
@@ -93,11 +118,10 @@ namespace NuGet.Canton
             summary.Add("failures", 0);
             summary.Add("host", Host);
             summary.Add("cantonCommitId", cantonCommitId);
-            Log("finished cantonCommitId: " + cantonCommitId);
 
-            queue.AddMessage(new CloudQueueMessage(summary.ToString()));
+            _queueTasks.Enqueue(queue.AddMessageAsync(new CloudQueueMessage(summary.ToString())));
 
-            Log("Gallery page created: " + resourceUri.AbsoluteUri);
+            Log("Page Creation: Commit: " + cantonCommitId + " Uri: " + resourceUri.AbsoluteUri);
         }
 
         private async Task<JObject> GetJson(Uri uri)

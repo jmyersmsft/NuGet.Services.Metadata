@@ -61,6 +61,8 @@ namespace NuGet.Canton
 
             var items = _batch.ToArray();
 
+            ConcurrentDictionary<CatalogItem, Uri> tmpPages = new ConcurrentDictionary<CatalogItem, Uri>();
+
             Parallel.ForEach(items, options, item =>
             {
                 Uri resourceUri = null;
@@ -73,9 +75,15 @@ namespace NuGet.Canton
 
                     Uri catalogPageUri = CreateCatalogPage(item);
 
-                    CommitItemComplete(catalogPageUri);
+                    //CommitItemComplete(catalogPageUri);
 
                     resourceUri = item.GetItemAddress();
+
+                    if (!tmpPages.TryAdd(item, catalogPageUri))
+                    {
+                        throw new Exception("duplicate item");
+                    }
+
 
                     //if (catalogPageUri != null)
                     //{
@@ -93,6 +101,14 @@ namespace NuGet.Canton
                     throw new Exception(string.Format("item uri: {0}", resourceUri == null ? "none" : resourceUri.AbsoluteUri), e);
                 }
             });
+
+            // make sure to commit these in the correct order
+            foreach (var item in items)
+            {
+                Uri pageUri = null;
+                tmpPages.TryGetValue(item, out pageUri);
+                CommitItemComplete(pageUri);
+            }
 
             return pageItems;
         }

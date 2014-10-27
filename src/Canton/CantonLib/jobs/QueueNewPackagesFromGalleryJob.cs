@@ -6,6 +6,7 @@ using NuGet.Services.Metadata.Catalog.GalleryIntegration;
 using NuGet.Services.Metadata.Catalog.Maintenance;
 using NuGet.Services.Metadata.Catalog.Persistence;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.Globalization;
@@ -21,13 +22,14 @@ namespace NuGet.Canton
     public class QueueNewPackagesFromGallery : CollectorJob
     {
         public const string CursorName = "queuenewpackagesfromgallery";
-        private const int BatchSize = 2000;
+        private const int BatchSize = 50;
         private int _cantonCommitId = 0;
+        private ConcurrentQueue<Task> _queueTasks;
 
         public QueueNewPackagesFromGallery(Config config, Storage storage)
             : base(config, storage, CursorName)
         {
-
+            _queueTasks = new ConcurrentQueue<Task>();
         }
 
         public override async Task RunCore()
@@ -77,12 +79,21 @@ namespace NuGet.Canton
                         batcher).Wait();
                     lastHighest = range.Item2;
 
+                    // make sure the queue is caught up
+                    Task curTask = null;
+                    while (_queueTasks.TryDequeue(out curTask))
+                    {
+                        curTask.Wait();
+                    }
+
                     Log("Just one batch, remove this later!!!");
                     break; //one batch at a time REMOVE THIS LATER!!!!
                 }
 
                 // wait for the batch to write
                 batcher.Complete().Wait();
+
+                Task.WaitAll(_queueTasks.ToArray());
 
                 // update the cursor
                 JObject obj = new JObject();
@@ -100,18 +111,24 @@ namespace NuGet.Canton
         // Add the page that was created to the queue for processing later
         private void QueuePage(Uri uri, CloudQueue queue)
         {
+            int curId = 0;
+
+            lock (this)
+            {
+                curId = _cantonCommitId;
+                _cantonCommitId++;
+            }
+
             JObject summary = new JObject();
             summary.Add("uri", uri.AbsoluteUri);
             summary.Add("submitted", DateTime.UtcNow.ToString("O"));
             summary.Add("failures", 0);
             summary.Add("host", Host);
+            summary.Add("cantonCommitId", curId);
 
-            summary.Add("cantonCommitId", _cantonCommitId);
-            _cantonCommitId++;
+            _queueTasks.Enqueue(queue.AddMessageAsync(new CloudQueueMessage(summary.ToString())));
 
-            queue.AddMessage(new CloudQueueMessage(summary.ToString()));
-
-            Log("Gallery page created: " + uri.AbsoluteUri);
+            Log("Gallery page. Commit id: " + curId + " Uri: " + uri.AbsoluteUri);
         }
     }
 }

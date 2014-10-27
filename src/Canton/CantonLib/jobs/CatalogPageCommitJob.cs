@@ -33,52 +33,58 @@ namespace NuGet.Canton
                 cantonCommitId = cantonCommitIdToken.ToObject<int>();
             }
 
-            var qClient = Account.CreateCloudQueueClient();
-            var queue = qClient.GetQueueReference(CantonConstants.CatalogPageQueue);
-
-            List<Tuple<int, CloudQueueMessage>> extraMessages = new List<Tuple<int, CloudQueueMessage>>();
-            Queue<Tuple<int, CloudQueueMessage>> orderedMessages = new Queue<Tuple<int, CloudQueueMessage>>();
+            Dictionary<int, CloudQueueMessage> unQueuedMessages = new Dictionary<int, CloudQueueMessage>();
+            Queue<CloudQueueMessage> orderedMessages = new Queue<CloudQueueMessage>();
 
             var blobClient = Account.CreateCloudBlobClient();
 
             using (AppendOnlyCatalogWriter writer = new AppendOnlyCatalogWriter(Storage, 600))
             {
-                var messages = queue.GetMessages(32, hold).ToList();
+                var messages = Queue.GetMessages(32, hold).ToList();
 
                 // tasks that will be waited on as part of the commit
                 Queue<Task> tasks = new Queue<Task>();
 
                 // everything must run in canton commit order!
-                while (messages.Count > 0 || extraMessages.Count > 0 || orderedMessages.Count > 0)
+                while (messages.Count > 0 || unQueuedMessages.Count > 0 || orderedMessages.Count > 0)
                 {
                     foreach (var message in messages)
                     {
                         JObject json = JObject.Parse(message.AsString);
-                        extraMessages.Add(new Tuple<int, CloudQueueMessage>(json["cantonCommitId"].ToObject<int>(), message));
+                        int id = json["cantonCommitId"].ToObject<int>();
+                        Log("Found: " + id);
+
+                        if (id >= cantonCommitId)
+                        {
+                            unQueuedMessages.Add(id, message);
+                        }
+                        else
+                        {
+                            LogError("Ignoring old cantonCommitId: " + id + " We are on: " + cantonCommitId);
+                        }
                     }
 
-                    // TODO: optimize this search
-                    while (extraMessages.Select(t => t.Item1).Any(x => x == cantonCommitId))
+                    Log("Looking For: " + cantonCommitId);
+
+                    while (unQueuedMessages.ContainsKey(cantonCommitId))
                     {
-                        var cur = extraMessages.Where(t => t.Item1 == cantonCommitId).Single();
+                        Log("Queuing: " + cantonCommitId);
 
-                        // increment now that we found what we needed
+                        orderedMessages.Enqueue(unQueuedMessages[cantonCommitId]);
+                        unQueuedMessages.Remove(cantonCommitId);
                         cantonCommitId++;
-
-                        extraMessages.Remove(cur);
-                        orderedMessages.Enqueue(cur);
                     }
 
                     while (orderedMessages.Count > 0)
                     {
-                        var curTuple = orderedMessages.Dequeue();
-                        cantonCommitId = curTuple.Item1;
-                        var message = curTuple.Item2;
+                        var message = orderedMessages.Dequeue();
+                        JObject json = JObject.Parse(message.AsString);
+                        int curId = json["cantonCommitId"].ToObject<int>();
 
                         JObject work = JObject.Parse(message.AsString);
                         Uri resourceUri = new Uri(work["uri"].ToString());
 
-                        Log("Commiting: " + resourceUri.AbsoluteUri);
+                        Log("Adding: Id: " + curId + " Uri: " + resourceUri.AbsoluteUri);
 
                         // the page is loaded from storage in the background
                         CantonCatalogItem item = new CantonCatalogItem(Account, resourceUri);
@@ -96,8 +102,8 @@ namespace NuGet.Canton
 
                             // update the cursor
                             JObject obj = new JObject();
-                            obj.Add("cantonCommitId", cantonCommitId);
-                            Log("cantonCommitId: " + cantonCommitId);
+                            obj.Add("cantonCommitId", curId);
+                            Log("Cursor cantonCommitId: " + curId);
 
                             Cursor.Position = DateTime.UtcNow;
                             Cursor.Metadata = obj;
@@ -108,12 +114,13 @@ namespace NuGet.Canton
                         }
                     }
 
-                    messages = queue.GetMessages(32, hold).ToList();
+                    messages = Queue.GetMessages(32, hold).ToList();
 
                     if (messages.Count < 1)
                     {
                         // avoid getting out of control when the pages aren't ready yet
-                        Thread.Sleep(TimeSpan.FromMinutes(1));
+                        Log("PageCommitJob Waiting.");
+                        Thread.Sleep(TimeSpan.FromSeconds(10));
                     }
                 }
 

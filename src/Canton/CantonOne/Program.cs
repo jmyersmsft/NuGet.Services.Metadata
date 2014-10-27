@@ -38,6 +38,9 @@ namespace NuGet.Canton.One
             // read the gallery to find new packages
             jobs.Enqueue(new QueueNewPackagesFromGallery(config, new AzureStorage(account, config.GetProperty("GalleryPageContainer"))));
 
+            // tmp
+            jobs.Enqueue(new CatalogPageJob(config, new AzureStorage(account, config.GetProperty("tmp")), CantonConstants.GalleryPagesQueue));
+
             // commit pages to the catalog
             jobs.Enqueue(new CatalogPageCommitJob(config, new AzureStorage(account, config.GetProperty("CatalogContainer"))));
 

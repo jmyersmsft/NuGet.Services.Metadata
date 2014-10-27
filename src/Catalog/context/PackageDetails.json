@@ -3,6 +3,7 @@
         "@vocab": "http://schema.nuget.org/schema#",
         "catalog": "http://schema.nuget.org/catalog#",
         "xsd": "http://www.w3.org/2001/XMLSchema#",
+        "canton": "http://schema.nuget.org/canton#",
         "dependencies" : { "@id" : "dependency", "@container" : "@set" },
         "dependencyGroups" : { "@id" : "dependencyGroup", "@container" : "@set" },
         "packageEntries": { "@id": "packageEntry", "@container": "@set" },
