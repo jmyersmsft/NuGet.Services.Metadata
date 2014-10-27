@@ -36,7 +36,7 @@ namespace NuGet.Canton.One
             jobs.Enqueue(new InitStorageJob(config));
 
             // read the gallery to find new packages
-            //jobs.Enqueue(new QueueNewPackagesFromGallery(config, new AzureStorage(account, config.GetProperty("GalleryPageContainer"))));
+            jobs.Enqueue(new QueueNewPackagesFromGallery(config, new AzureStorage(account, config.GetProperty("GalleryPageContainer"))));
 
             // tmp
             jobs.Enqueue(new CatalogPageJob(config, new AzureStorage(account, config.GetProperty("tmp")), CantonConstants.GalleryPagesQueue));
@@ -45,12 +45,12 @@ namespace NuGet.Canton.One
             jobs.Enqueue(new CatalogPageCommitJob(config, new AzureStorage(account, config.GetProperty("CatalogContainer"))));
 
             // create registration blobs
-            jobs.Enqueue(new RegistrationJob(config, new AzureStorage(account, config.GetProperty("RegistrationContainer")), new AzureStorageFactory(account, config.GetProperty("RegistrationContainer"))));
+            //jobs.Enqueue(new RegistrationJob(config, new AzureStorage(account, config.GetProperty("RegistrationContainer")), new AzureStorageFactory(account, config.GetProperty("RegistrationContainer"))));
 
             Stopwatch timer = new Stopwatch();
 
             // avoid flooding the gallery
-            TimeSpan minWait = TimeSpan.FromMinutes(2);
+            TimeSpan minWait = TimeSpan.FromSeconds(30);
 
             while (true)
             {
@@ -61,7 +61,7 @@ namespace NuGet.Canton.One
 
                 Console.WriteLine("Completed jobs in: " + timer.Elapsed);
 
-                if (waitTime.TotalMilliseconds > 0)
+                if (waitTime.TotalSeconds > 0)
                 {
                     Console.WriteLine("Sleeping: " + waitTime.TotalSeconds + "s");
                     Thread.Sleep(waitTime);

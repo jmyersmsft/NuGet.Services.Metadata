@@ -5,6 +5,7 @@ using NuGet.Services.Metadata.Catalog.Maintenance;
 using NuGet.Services.Metadata.Catalog.Persistence;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -38,6 +39,9 @@ namespace NuGet.Canton
 
             var blobClient = Account.CreateCloudBlobClient();
 
+            Stopwatch giveup = new Stopwatch();
+            giveup.Start();
+
             using (AppendOnlyCatalogWriter writer = new AppendOnlyCatalogWriter(Storage, 600))
             {
                 var messages = Queue.GetMessages(32, hold).ToList();
@@ -48,6 +52,8 @@ namespace NuGet.Canton
                 // everything must run in canton commit order!
                 while (messages.Count > 0 || unQueuedMessages.Count > 0 || orderedMessages.Count > 0)
                 {
+                    Log(String.Format("Messages: {0} Waiting: {1} Ordered: {2}", messages.Count, unQueuedMessages.Count, orderedMessages.Count));
+
                     foreach (var message in messages)
                     {
                         JObject json = JObject.Parse(message.AsString);
@@ -68,6 +74,8 @@ namespace NuGet.Canton
                         orderedMessages.Enqueue(unQueuedMessages[cantonCommitId]);
                         unQueuedMessages.Remove(cantonCommitId);
                         cantonCommitId++;
+
+                        giveup.Restart();
                     }
 
                     while (orderedMessages.Count > 0)
@@ -112,8 +120,18 @@ namespace NuGet.Canton
                     if (messages.Count < 1)
                     {
                         // avoid getting out of control when the pages aren't ready yet
-                        Log("PageCommitJob Waiting.");
+                        Log("PageCommitJob Waiting for: " + cantonCommitId);
                         Thread.Sleep(TimeSpan.FromSeconds(10));
+
+                        // just give up after 15 minutes 
+                        if (giveup.Elapsed > TimeSpan.FromMinutes(15))
+                        {
+                            while (!unQueuedMessages.ContainsKey(cantonCommitId))
+                            {
+                                LogError("Giving up on: " + cantonCommitId);
+                                cantonCommitId++;
+                            }
+                        }
                     }
                 }
 

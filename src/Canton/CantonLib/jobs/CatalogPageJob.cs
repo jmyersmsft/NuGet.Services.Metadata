@@ -165,6 +165,11 @@ namespace NuGet.Canton
 
             FileInfo file = new FileInfo(Path.Combine(_tmpDir.FullName, packageName));
 
+            if (file.Exists)
+            {
+                file.Delete();
+            }
+
             var tmpContainer = tmpBlobClient.GetContainerReference(Config.GetProperty("tmp"));
 
             string tmpFile = String.Format(CultureInfo.InvariantCulture, "packages/{0}", packageName);
