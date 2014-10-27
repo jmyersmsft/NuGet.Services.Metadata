@@ -163,12 +163,7 @@ namespace NuGet.Canton
 
             string packageName = String.Format(CultureInfo.InvariantCulture, "{0}.{1}.nupkg", id, version).ToLowerInvariant();
 
-            FileInfo file = new FileInfo(Path.Combine(_tmpDir.FullName, packageName));
-
-            if (file.Exists)
-            {
-                file.Delete();
-            }
+            FileInfo file = new FileInfo(Path.Combine(_tmpDir.FullName, Guid.NewGuid().ToString() + ".nupkg"));
 
             var tmpContainer = tmpBlobClient.GetContainerReference(Config.GetProperty("tmp"));
 
