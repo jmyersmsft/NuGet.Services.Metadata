@@ -22,9 +22,11 @@ namespace NuGet.Canton
 
         public override async Task RunCore()
         {
+            DateTime now = DateTime.UtcNow.Subtract(TimeSpan.FromMinutes(30));
             _lastCommit = Cursor.Position;
 
             RegistrationCatalogCollector collector = new RegistrationCatalogCollector(_factory, BatchSize);
+            collector.ContentBaseAddress = new Uri(Config.GetProperty("ContentBaseAddress"));
 
             var end = DateTime.UtcNow.Subtract(TimeSpan.FromMinutes(2));
 
@@ -41,6 +43,15 @@ namespace NuGet.Canton
             collector.ProcessedCommit -= Collector_ProcessedCommit;
 
             Cursor.Position = _lastCommit;
+
+            if (Cursor.Position.CompareTo(now) < 0)
+            {
+                Cursor.Position = now;
+            }
+
+            Log("Requests: " + collector.RequestCount);
+            Log("Saving cursor: " + Cursor.Position.ToString("O"));
+
             await Cursor.Save();
         }
 
