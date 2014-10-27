@@ -52,7 +52,6 @@ namespace NuGet.Canton
                     {
                         JObject json = JObject.Parse(message.AsString);
                         int id = json["cantonCommitId"].ToObject<int>();
-                        Log("Found: " + id);
 
                         if (id >= cantonCommitId)
                         {
@@ -64,12 +63,8 @@ namespace NuGet.Canton
                         }
                     }
 
-                    Log("Looking For: " + cantonCommitId);
-
                     while (unQueuedMessages.ContainsKey(cantonCommitId))
                     {
-                        Log("Queuing: " + cantonCommitId);
-
                         orderedMessages.Enqueue(unQueuedMessages[cantonCommitId]);
                         unQueuedMessages.Remove(cantonCommitId);
                         cantonCommitId++;
@@ -83,8 +78,6 @@ namespace NuGet.Canton
 
                         JObject work = JObject.Parse(message.AsString);
                         Uri resourceUri = new Uri(work["uri"].ToString());
-
-                        Log("Adding: Id: " + curId + " Uri: " + resourceUri.AbsoluteUri);
 
                         // the page is loaded from storage in the background
                         CantonCatalogItem item = new CantonCatalogItem(Account, resourceUri);

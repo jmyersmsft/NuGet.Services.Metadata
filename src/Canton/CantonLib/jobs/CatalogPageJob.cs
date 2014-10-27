@@ -22,12 +22,19 @@ namespace NuGet.Canton
     {
         private CloudStorageAccount _packagesStorageAccount;
         private ConcurrentQueue<Task> _queueTasks;
+        private DirectoryInfo _tmpDir;
 
         public CatalogPageJob(Config config, Storage storage, string queueName)
             : base(config, storage, queueName)
         {
             _packagesStorageAccount = CloudStorageAccount.Parse(config.GetProperty("PackagesStorageConnectionString"));
             _queueTasks = new ConcurrentQueue<Task>();
+
+            _tmpDir = new DirectoryInfo(Config.GetProperty("localtmp"));
+            if (!_tmpDir.Exists)
+            {
+                _tmpDir.Create();
+            }
         }
 
         public override async Task RunCore()
@@ -156,7 +163,7 @@ namespace NuGet.Canton
 
             string packageName = String.Format(CultureInfo.InvariantCulture, "{0}.{1}.nupkg", id, version).ToLowerInvariant();
 
-            FileInfo file = new FileInfo(Path.Combine(Config.GetProperty("localtmp"), packageName));
+            FileInfo file = new FileInfo(Path.Combine(_tmpDir.FullName, packageName));
 
             var tmpContainer = tmpBlobClient.GetContainerReference(Config.GetProperty("tmp"));
 

@@ -9,7 +9,7 @@ using NuGet.Canton;
 using NuGet.Services.Metadata.Catalog.Persistence;
 using Microsoft.WindowsAzure.Storage;
 
-namespace NuGet.Canton.One
+namespace NuGet.Canton.Special
 {
     class Program
     {
@@ -35,18 +35,12 @@ namespace NuGet.Canton.One
             // set up the storage account
             jobs.Enqueue(new InitStorageJob(config));
 
-            // tmp
-            //jobs.Enqueue(new CatalogPageJob(config, new AzureStorage(account, config.GetProperty("tmp")), CantonConstants.GalleryPagesQueue));
-
-            // commit pages to the catalog
-            //jobs.Enqueue(new CatalogPageCommitJob(config, new AzureStorage(account, config.GetProperty("CatalogContainer"))));
-
-            // create registration blobs
-            jobs.Enqueue(new RegistrationJob(config, new AzureStorage(account, config.GetProperty("RegistrationContainer")), new AzureStorageFactory(account, config.GetProperty("RegistrationContainer"))));
+            // read the gallery to find new packages
+            jobs.Enqueue(new QueueNewPackagesFromGallery(config, new AzureStorage(account, config.GetProperty("GalleryPageContainer"))));
 
             Stopwatch timer = new Stopwatch();
             // avoid flooding the gallery
-            TimeSpan minWait = TimeSpan.FromMinutes(30);
+            TimeSpan minWait = TimeSpan.FromMinutes(90);
 
             while (true)
             {

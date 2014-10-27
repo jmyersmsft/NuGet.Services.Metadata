@@ -22,6 +22,8 @@ namespace NuGet.Canton
 
         public override async Task RunCore()
         {
+            _lastCommit = Cursor.Position;
+
             RegistrationCatalogCollector collector = new RegistrationCatalogCollector(_factory, BatchSize);
 
             var end = DateTime.UtcNow.Subtract(TimeSpan.FromMinutes(2));
@@ -31,15 +33,18 @@ namespace NuGet.Canton
 
             CollectorHttpClient httpClient = new CollectorHttpClient();
 
+            collector.ProcessedCommit += Collector_ProcessedCommit;
+
             var indexUri = new Uri(Config.GetProperty("CatalogIndex"));
             await collector.Run(httpClient, indexUri, cursor);
-            collector.ProcessedCommit += collector_ProcessedCommit;
+
+            collector.ProcessedCommit -= Collector_ProcessedCommit;
 
             Cursor.Position = _lastCommit;
             await Cursor.Save();
         }
 
-        private void collector_ProcessedCommit(CollectorCursor obj)
+        private void Collector_ProcessedCommit(CollectorCursor obj)
         {
             _lastCommit = DateTime.Parse(obj.Value);
             Log("Processing Registrations: " + obj.Value);
