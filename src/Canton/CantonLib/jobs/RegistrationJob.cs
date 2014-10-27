@@ -22,7 +22,7 @@ namespace NuGet.Canton
 
         public override async Task RunCore()
         {
-            DateTime now = DateTime.UtcNow.Subtract(TimeSpan.FromMinutes(30));
+            DateTime now = DateTime.UtcNow;
             _lastCommit = Cursor.Position;
 
             RegistrationCatalogCollector collector = new RegistrationCatalogCollector(_factory, BatchSize);

@@ -20,6 +20,7 @@ namespace NuGet.Canton
         private Storage _storage;
         private Config _config;
         private readonly string _host;
+        protected bool _run;
 
         public CantonJob(Config config, Storage storage)
         {
@@ -33,15 +34,23 @@ namespace NuGet.Canton
 
             _runTime = new Stopwatch();
             _host = Dns.GetHostName();
+            _run = true;
         }
 
         public void Run()
         {
+            _run = true;
             _runTime.Start();
 
             Task.Run(async () => await RunCore()).Wait();
 
             _runTime.Stop();
+            _run = false;
+        }
+
+        public virtual async Task Stop()
+        {
+            _run = false;
         }
 
         public virtual async Task RunCore()

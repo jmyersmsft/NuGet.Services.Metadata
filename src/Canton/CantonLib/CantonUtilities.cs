@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -60,16 +61,40 @@ namespace NuGet.Canton
 
         public static void RunJobs(Queue<CantonJob> jobs)
         {
+            CantonJob currentJob = null;
+            bool run = true;
+
+            ConsoleCancelEventHandler handler = (sender, e) =>
+                {
+                    run = false;
+
+                    if (currentJob != null)
+                    {
+                        currentJob.Stop().Wait();
+                    }
+                };
+
+            Console.CancelKeyPress += handler;
+
             try
             {
                 foreach (var job in jobs)
                 {
-                    job.Run();
+                    if (run)
+                    {
+                        currentJob = job;
+                        currentJob.Run();
+                        currentJob = null;
+                    }
                 }
             }
             catch (Exception ex)
             {
                 Log(ex.ToString(), "canton-job-exceptions.txt");
+            }
+            finally
+            {
+                Console.CancelKeyPress -= handler;
             }
         }
 
@@ -78,22 +103,40 @@ namespace NuGet.Canton
         /// </summary>
         public static void RunManyJobs(Queue<Func<CantonJob>> jobs, int instances)
         {
+            ConcurrentBag<CantonJob> currentJobs = new ConcurrentBag<CantonJob>();
+            bool run = true;
+
+            ConsoleCancelEventHandler handler = (sender, e) =>
+            {
+                run = false;
+
+                Parallel.ForEach(currentJobs.ToArray(), job =>
+                {
+                    job.Stop().Wait();
+                });
+            };
+
             try
             {
                 foreach (var getJob in jobs)
                 {
-                    Stack<Task> tasks = new Stack<Task>(instances);
-
-                    for (int i = 0; i < instances; i++)
+                    if (run)
                     {
-                        tasks.Push(Task.Run(() =>
-                            {
-                                CantonJob job = getJob();
-                                job.Run();
-                            }));
-                    }
+                        Stack<Task> tasks = new Stack<Task>(instances);
+                        currentJobs = new ConcurrentBag<CantonJob>();
 
-                    Task.WaitAll(tasks.ToArray());
+                        for (int i = 0; i < instances; i++)
+                        {
+                            tasks.Push(Task.Run(() =>
+                                {
+                                    CantonJob job = getJob();
+                                    currentJobs.Add(job);
+                                    job.Run();
+                                }));
+                        }
+
+                        Task.WaitAll(tasks.ToArray());
+                    }
                 }
             }
             catch (Exception ex)

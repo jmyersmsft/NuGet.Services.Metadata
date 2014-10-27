@@ -60,7 +60,7 @@ namespace NuGet.Canton
             using (var writer = new GalleryPageCreator(Storage, handler))
             {
                 var batcher = new GalleryExportBatcher(BatchSize, writer);
-                while (true)
+                while (_run)
                 {
                     var range = GalleryExport.GetNextRange(
                         dbConnStr,

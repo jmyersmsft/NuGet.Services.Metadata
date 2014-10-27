@@ -23,12 +23,14 @@ namespace NuGet.Canton
         private CloudStorageAccount _packagesStorageAccount;
         private ConcurrentQueue<Task> _queueTasks;
         private DirectoryInfo _tmpDir;
+        private ConcurrentDictionary<int, bool> _workQueueStatus;
 
         public CatalogPageJob(Config config, Storage storage, string queueName)
             : base(config, storage, queueName)
         {
             _packagesStorageAccount = CloudStorageAccount.Parse(config.GetProperty("PackagesStorageConnectionString"));
             _queueTasks = new ConcurrentQueue<Task>();
+            _workQueueStatus = new ConcurrentDictionary<int, bool>();
 
             _tmpDir = new DirectoryInfo(Config.GetProperty("localtmp"));
             if (!_tmpDir.Exists)
@@ -55,50 +57,68 @@ namespace NuGet.Canton
                     int cantonCommitId = work["cantonCommitId"].ToObject<int>();
                     Log("started cantonCommitId: " + cantonCommitId);
 
-                    // read the gallery page
-                    JObject galleryPage = await GetJson(galleryPageUri);
-
-                    // graph modififactions
-                    GraphAddon[] addons = new GraphAddon[] { 
-                        new OriginGraphAddon(galleryPageUri.AbsoluteUri, cantonCommitId),
-                        new GalleryGraphAddon(galleryPage)
-                    };
-
-                    string id = galleryPage["id"].ToString();
-                    string version = galleryPage["version"].ToString();
-
-                    DateTime? published = null;
-                    JToken publishedToken = null;
-                    if (galleryPage.TryGetValue("published", out publishedToken))
+                    try
                     {
-                        published = DateTime.Parse(publishedToken.ToString());
-                    }
+                        // read the gallery page
+                        JObject galleryPage = await GetJson(galleryPageUri);
 
-                    // download the nupkg
-                    FileInfo nupkg = await GetNupkg(id, version);
+                        // graph modififactions
+                        GraphAddon[] addons = new GraphAddon[] { 
+                                new OriginGraphAddon(galleryPageUri.AbsoluteUri, cantonCommitId),
+                                new GalleryGraphAddon(galleryPage)
+                            };
 
-                    Action<Uri> handler = (resourceUri) => QueuePage(resourceUri, Schema.DataTypes.PackageDetails, cantonCommitId, queue);
+                        string id = galleryPage["id"].ToString();
+                        string version = galleryPage["version"].ToString();
 
-                    // create the new catalog item
-                    using (var stream = nupkg.OpenRead())
-                    {
-                        // Create the core catalog page graph and upload it
-                        using (CatalogPageCreator writer = new CatalogPageCreator(Storage, handler, addons))
+                        DateTime? published = null;
+                        JToken publishedToken = null;
+                        if (galleryPage.TryGetValue("published", out publishedToken))
                         {
-                            CatalogItem catalogItem = Utils.CreateCatalogItem(stream, published, null, nupkg.FullName);
-                            writer.Add(catalogItem);
-                            await writer.Commit(DateTime.UtcNow);
+                            published = DateTime.Parse(publishedToken.ToString());
+                        }
+
+                        // download the nupkg
+                        FileInfo nupkg = await GetNupkg(id, version);
+
+                        Action<Uri> handler = (resourceUri) => QueuePage(resourceUri, Schema.DataTypes.PackageDetails, cantonCommitId, queue);
+
+                        // create the new catalog item
+                        using (var stream = nupkg.OpenRead())
+                        {
+                            // Create the core catalog page graph and upload it
+                            using (CatalogPageCreator writer = new CatalogPageCreator(Storage, handler, addons))
+                            {
+                                CatalogItem catalogItem = Utils.CreateCatalogItem(stream, published, null, nupkg.FullName);
+                                writer.Add(catalogItem);
+                                await writer.Commit(DateTime.UtcNow);
+                            }
+                        }
+
+                        // clean up
+                        nupkg.Delete();
+                    }
+                    finally
+                    {
+                        _queueTasks.Enqueue(Queue.DeleteMessageAsync(message));
+
+                        bool status = false;
+                        if (!_workQueueStatus.TryRemove(cantonCommitId, out status) || status == false)
+                        {
+                            // we have to send something, the job on the other side should recognize https://failed
+                            QueuePage(new Uri("https://failed"), Schema.DataTypes.PackageDetails, cantonCommitId, queue);
+
+                            LogError("Unable to build catalog page for: " + galleryPageUri.AbsoluteUri);
                         }
                     }
-
-                    // clean up
-                    nupkg.Delete();
-
-                    _queueTasks.Enqueue(Queue.DeleteMessageAsync(message));
                 }
 
                 // get the next work item
-                messages = Queue.GetMessages(32, hold).ToList();
+                messages = new List<CloudQueueMessage>();
+                if (_run)
+                {
+                    messages = Queue.GetMessages(32, hold).ToList();
+                }
 
                 // let deletes catch up
                 Task task = null;
@@ -118,6 +138,9 @@ namespace NuGet.Canton
 
         private void QueuePage(Uri resourceUri, Uri itemType, int cantonCommitId, CloudQueue queue)
         {
+            // mark that we sent a message for this
+            _workQueueStatus.AddOrUpdate(cantonCommitId, true, (k,v) => true);
+
             JObject summary = new JObject();
             summary.Add("uri", resourceUri.AbsoluteUri);
             summary.Add("itemType", itemType.AbsoluteUri);
