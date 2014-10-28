@@ -109,8 +109,8 @@ namespace NuGet.Canton
                         bool status = false;
                         if (!_workQueueStatus.TryRemove(cantonCommitId, out status) || status == false)
                         {
-                            // we have to send something, the job on the other side should recognize https://failed
-                            QueuePage(new Uri("https://failed"), Schema.DataTypes.PackageDetails, cantonCommitId, queue);
+                            // we have to send something, the job on the other side should recognize https://failed/
+                            QueuePage(new Uri("https://failed/"), Schema.DataTypes.PackageDetails, cantonCommitId, queue);
 
                             LogError("Unable to build catalog page for: " + galleryPageUri.AbsoluteUri);
                         }

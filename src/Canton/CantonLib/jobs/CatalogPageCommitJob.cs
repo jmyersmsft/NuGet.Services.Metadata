@@ -7,6 +7,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -16,7 +17,7 @@ namespace NuGet.Canton
 {
     public class CatalogPageCommitJob : CursorQueueFedJob
     {
-        private const int BatchSize = 64;
+        private const int BatchSize = 600;
 
         public CatalogPageCommitJob(Config config, Storage storage)
             : base(config, storage, CantonConstants.CatalogPageQueue, "catalogpagecommit")
@@ -105,175 +106,161 @@ namespace NuGet.Canton
             ParallelOptions options = new ParallelOptions();
             options.MaxDegreeOfParallelism = 8;
 
+            ConcurrentBag<CantonCatalogItem> batchItems = new ConcurrentBag<CantonCatalogItem>();
+            Task commitTask = null;
+
             try
             {
                 using (AppendOnlyCatalogWriter writer = new AppendOnlyCatalogWriter(Storage, 600))
                 {
-                    // get everything in the queue
-                    Log("Getting work");
-                    var newWork = GetWork();
-                    Log("Done getting work");
-
-                    int lastHighestCommit = 0;
-
-                    Task commitTask = null;
-                    Task cursorTask = null;
-
-                    // everything must run in canton commit order!
-                    while (_run && (newWork.Count > 0 || unQueuedMessages.Count > 0 || orderedMessages.Count > 0))
+                    try
                     {
-                        Log(String.Format("New: {0} Waiting: {1} Ordered: {2}", newWork.Count, unQueuedMessages.Count, orderedMessages.Count));
+                        // get everything in the queue
+                        Log("Getting work");
+                        var newWork = GetWork();
+                        Log("Done getting work");
 
-                        int[] newIds = newWork.Keys.ToArray();
-
-                        foreach (int curId in newIds)
+                        // everything must run in canton commit order!
+                        while (_run && (newWork.Count > 0 || unQueuedMessages.Count > 0 || orderedMessages.Count > 0))
                         {
-                            string s = newWork[curId];
-                            JObject json = JObject.Parse(s);
-                            int id = json["cantonCommitId"].ToObject<int>();
+                            Log(String.Format("New: {0} Waiting: {1} Ordered: {2}", newWork.Count, unQueuedMessages.Count, orderedMessages.Count));
 
-                            if (id >= cantonCommitId && !unQueuedMessages.ContainsKey(id))
+                            int[] newIds = newWork.Keys.ToArray();
+
+                            foreach (int curId in newIds)
                             {
-                                unQueuedMessages.Add(id, s);
-                            }
-                            else
-                            {
-                                LogError("Ignoring old cantonCommitId: " + id + " We are on: " + cantonCommitId);
-                            }
-                        }
+                                string s = newWork[curId];
+                                JObject json = JObject.Parse(s);
+                                int id = json["cantonCommitId"].ToObject<int>();
 
-                        // load up the next 4096 work items we need
-                        while (unQueuedMessages.ContainsKey(cantonCommitId) && orderedMessages.Count < 4096)
-                        {
-                            JObject json = JObject.Parse(unQueuedMessages[cantonCommitId]);
-
-                            orderedMessages.Enqueue(json);
-                            unQueuedMessages.Remove(cantonCommitId);
-
-                            cantonCommitId++;
-
-                            giveup.Restart();
-                        }
-
-                        // just take up to the batch size
-                        Queue<JObject> currentBatch = new Queue<JObject>();
-
-                        while (currentBatch.Count < BatchSize && orderedMessages.Count > 0)
-                        {
-                            currentBatch.Enqueue(orderedMessages.Dequeue());
-                        }
-
-                        ConcurrentBag<CantonCatalogItem> batchItems = new ConcurrentBag<CantonCatalogItem>();
-
-                        Parallel.ForEach(currentBatch, options, workJson =>
-                        {
-                            int curId = workJson["cantonCommitId"].ToObject<int>();
-                            string resourceUriString = workJson["uri"].ToString();
-
-                            if (!StringComparer.OrdinalIgnoreCase.Equals(resourceUriString, "https://failed"))
-                            {
-                                Uri resourceUri = new Uri(resourceUriString);
-
-                                // the page is loaded from storage in the background
-                                CantonCatalogItem item = new CantonCatalogItem(Account, resourceUri, curId);
-
-                                // download the graph
-                                item.LoadGraph();
-
-                                batchItems.Add(item);
-                            }
-                            else
-                            {
-                                Log("Skipping failed page: " + cantonCommitId);
-                            }
-                        });
-
-                        if (commitTask != null)
-                        {
-                            await commitTask;
-                        }
-
-                        if (cursorTask != null)
-                        {
-                            await cursorTask;
-                        }
-
-                        var orderedBatch = batchItems.ToList();
-                        orderedBatch.Sort(CantonCatalogItem.Compare);
-
-                        // add the items to the writer
-                        foreach (var orderedItem in orderedBatch)
-                        {
-                            lastHighestCommit = orderedItem.CantonCommitId;
-                            writer.Add(orderedItem);
-                        }
-
-                        if (writer.Count >= BatchSize)
-                        {
-                            commitTask = writer.Commit();
-
-                            // update the cursor
-                            JObject obj = new JObject();
-                            obj.Add("cantonCommitId", lastHighestCommit);
-                            Log("Cursor cantonCommitId: " + lastHighestCommit);
-
-                            Cursor.Position = DateTime.UtcNow;
-                            Cursor.Metadata = obj;
-                            cursorTask = Cursor.Save();
-                        }
-
-                        // get the next work item
-                        if (_run)
-                        {
-                            newWork = GetWork();
-                        }
-                        else
-                        {
-                            newWork = new Dictionary<int, string>();
-                        }
-
-                        if (newWork.Count < 1 && _run)
-                        {
-                            // avoid getting out of control when the pages aren't ready yet
-                            Log("PageCommitJob Waiting for: " + cantonCommitId);
-                            Thread.Sleep(TimeSpan.FromSeconds(10));
-
-                            // just give up after 5 minutes 
-                            // TODO: handle this better
-                            if (giveup.Elapsed > TimeSpan.FromMinutes(5) || unQueuedMessages.Count > 5000)
-                            {
-                                while (!unQueuedMessages.ContainsKey(cantonCommitId))
+                                if (id >= cantonCommitId && !unQueuedMessages.ContainsKey(id))
                                 {
-                                    LogError("Giving up on: " + cantonCommitId);
-                                    cantonCommitId++;
+                                    unQueuedMessages.Add(id, s);
+                                }
+                                else
+                                {
+                                    LogError("Ignoring old cantonCommitId: " + id + " We are on: " + cantonCommitId);
+                                }
+                            }
+
+                            // load up the next 4096 work items we need
+                            while (unQueuedMessages.ContainsKey(cantonCommitId) && orderedMessages.Count < 4096)
+                            {
+                                JObject json = JObject.Parse(unQueuedMessages[cantonCommitId]);
+
+                                orderedMessages.Enqueue(json);
+                                unQueuedMessages.Remove(cantonCommitId);
+
+                                cantonCommitId++;
+
+                                giveup.Restart();
+                            }
+
+                            // just take up to the batch size
+                            Queue<JObject> currentBatch = new Queue<JObject>();
+
+                            // get up to the batchsize
+                            while (currentBatch.Count < BatchSize && orderedMessages.Count > 0 && (currentBatch.Count + batchItems.Count) < BatchSize)
+                            {
+                                currentBatch.Enqueue(orderedMessages.Dequeue());
+                            }
+
+                            if (currentBatch.Count > 0)
+                            {
+                                Stopwatch timer = new Stopwatch();
+                                timer.Start();
+                                int before = batchItems.Count;
+
+                                Parallel.ForEach(currentBatch, options, workJson =>
+                                {
+                                    try
+                                    {
+                                        int curId = workJson["cantonCommitId"].ToObject<int>();
+                                        string resourceUriString = workJson["uri"].ToString();
+
+                                        if (!StringComparer.OrdinalIgnoreCase.Equals(resourceUriString, "https://failed/"))
+                                        {
+                                            Uri resourceUri = new Uri(resourceUriString);
+
+                                            // the page is loaded from storage in the background
+                                            CantonCatalogItem item = new CantonCatalogItem(Account, resourceUri, curId);
+
+                                            // download the graph, this is a blocking call
+                                            item.LoadGraph();
+
+                                            // add the item to the batch to be committed in order later
+                                            batchItems.Add(item);
+                                        }
+                                        else
+                                        {
+                                            Log("Skipping failed page: " + cantonCommitId);
+                                        }
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        LogError("Unable to create page: " + ex.ToString());
+                                    }
+                                });
+
+                                timer.Stop();
+                                Console.WriteLine(String.Format(CultureInfo.InvariantCulture, "Loaded {0} pre-built pages in {1}", (batchItems.Count - before), timer.Elapsed));
+                            }
+
+                            // commit the items
+                            if (batchItems.Count >= BatchSize)
+                            {
+                                CantonCatalogItem[] curItems = batchItems.ToArray();
+                                batchItems = new ConcurrentBag<CantonCatalogItem>();
+
+                                if (commitTask != null)
+                                {
+                                    await commitTask;
+                                }
+
+                                // make certain this ALL runs on another thread
+                                commitTask = Task.Run(async () => await Commit(writer, curItems));
+                            }
+
+                            // get the next work item
+                            if (_run)
+                            {
+                                newWork = GetWork();
+                            }
+                            else
+                            {
+                                newWork = new Dictionary<int, string>();
+                            }
+
+                            if (newWork.Count < 1 && _run)
+                            {
+                                // just give up after 5 minutes 
+                                // TODO: handle this better
+                                if (giveup.Elapsed > TimeSpan.FromMinutes(5) || unQueuedMessages.Count > 5000)
+                                {
+                                    while (!unQueuedMessages.ContainsKey(cantonCommitId))
+                                    {
+                                        LogError("Giving up on: " + cantonCommitId);
+                                        cantonCommitId++;
+                                    }
+                                }
+                                else
+                                {
+                                    // avoid getting out of control when the pages aren't ready yet
+                                    Log("PageCommitJob Waiting for: " + cantonCommitId);
+                                    Thread.Sleep(TimeSpan.FromSeconds(15));
                                 }
                             }
                         }
                     }
-
-                    if (commitTask != null)
+                    finally
                     {
-                        await commitTask;
-                    }
+                        // commit anything that was waiting
+                        if (commitTask != null)
+                        {
+                            commitTask.Wait();
+                        }
 
-                    if (cursorTask != null)
-                    {
-                        await cursorTask;
-                    }
-
-
-                    if (writer.Count > 0)
-                    {
-                        await writer.Commit();
-
-                        // update the cursor
-                        JObject obj = new JObject();
-                        obj.Add("cantonCommitId", lastHighestCommit);
-                        Log("Cursor cantonCommitId: " + lastHighestCommit);
-
-                        Cursor.Position = DateTime.UtcNow;
-                        Cursor.Metadata = obj;
-                        await Cursor.Save();
+                        Commit(writer, batchItems.ToArray()).Wait();
                     }
                 }
             }
@@ -297,6 +284,42 @@ namespace NuGet.Canton
 
                 Log("returning work to the queue done");
             }
+        }
+
+        private async Task Commit(AppendOnlyCatalogWriter writer, CantonCatalogItem[] batchItems)
+        {
+            var orderedBatch = batchItems.ToList();
+            orderedBatch.Sort(CantonCatalogItem.Compare);
+
+            int lastHighestCommit = 0;
+
+            // add the items to the writer
+            foreach (var orderedItem in orderedBatch)
+            {
+                lastHighestCommit = orderedItem.CantonCommitId + 1;
+                writer.Add(orderedItem);
+            }
+
+            // update the cursor
+            JObject obj = new JObject();
+            // add one here since we are already added the current number
+            obj.Add("cantonCommitId", lastHighestCommit);
+            Log("Cursor cantonCommitId: " + lastHighestCommit);
+
+            Cursor.Position = DateTime.UtcNow;
+            Cursor.Metadata = obj;
+            var cursorTask = Cursor.Save();
+
+            Stopwatch timer = new Stopwatch();
+            timer.Start();
+
+            // commit
+            await writer.Commit();
+
+            timer.Stop();
+            Console.WriteLine("Commit duration: " + timer.Elapsed);
+
+            await cursorTask;
         }
     }
 }
