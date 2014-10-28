@@ -193,7 +193,7 @@ namespace NuGet.Canton
                                         }
                                         else
                                         {
-                                            Log("Skipping failed page: " + cantonCommitId);
+                                            Log("Skipping failed page: " + curId);
                                         }
                                     }
                                     catch (Exception ex)
@@ -235,7 +235,7 @@ namespace NuGet.Canton
                             {
                                 // just give up after 5 minutes 
                                 // TODO: handle this better
-                                if (giveup.Elapsed > TimeSpan.FromMinutes(5) || unQueuedMessages.Count > 5000)
+                                if (giveup.Elapsed > TimeSpan.FromMinutes(30) || unQueuedMessages.Count > 20000)
                                 {
                                     while (!unQueuedMessages.ContainsKey(cantonCommitId))
                                     {
@@ -300,15 +300,21 @@ namespace NuGet.Canton
                 writer.Add(orderedItem);
             }
 
-            // update the cursor
-            JObject obj = new JObject();
-            // add one here since we are already added the current number
-            obj.Add("cantonCommitId", lastHighestCommit);
-            Log("Cursor cantonCommitId: " + lastHighestCommit);
+            Task cursorTask = null;
 
-            Cursor.Position = DateTime.UtcNow;
-            Cursor.Metadata = obj;
-            var cursorTask = Cursor.Save();
+            // only save the cursor if we did something
+            if (lastHighestCommit > 0)
+            {
+                // update the cursor
+                JObject obj = new JObject();
+                // add one here since we are already added the current number
+                obj.Add("cantonCommitId", lastHighestCommit);
+                Log("Cursor cantonCommitId: " + lastHighestCommit);
+
+                Cursor.Position = DateTime.UtcNow;
+                Cursor.Metadata = obj;
+                cursorTask = Cursor.Save();
+            }
 
             Stopwatch timer = new Stopwatch();
             timer.Start();
@@ -319,7 +325,10 @@ namespace NuGet.Canton
             timer.Stop();
             Console.WriteLine("Commit duration: " + timer.Elapsed);
 
-            await cursorTask;
+            if (cursorTask != null)
+            {
+                await cursorTask;
+            }
         }
     }
 }

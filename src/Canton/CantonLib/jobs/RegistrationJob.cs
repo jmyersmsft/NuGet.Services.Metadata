@@ -61,10 +61,10 @@ namespace NuGet.Canton
 
             Cursor.Position = _lastCommit;
 
-            if (Cursor.Position.CompareTo(now) < 0 && !error)
-            {
-                Cursor.Position = now;
-            }
+            //if (Cursor.Position.CompareTo(now) < 0 && !error)
+            //{
+            //    Cursor.Position = now;
+            //}
 
             Log("Requests: " + collector.RequestCount);
             Log("Saving cursor: " + Cursor.Position.ToString("O"));
