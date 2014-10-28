@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json.Linq;
+﻿using Microsoft.WindowsAzure.Storage.Queue;
+using Newtonsoft.Json.Linq;
 using NuGet.Services.Metadata.Catalog.Collecting;
 using NuGet.Services.Metadata.Catalog.Persistence;
 using System;
@@ -23,57 +24,108 @@ namespace NuGet.Canton.jobs
 
         public override async Task RunCore()
         {
+            int nextMasterRegId = 0;
+
             DateTime position = Cursor.Position;
+
+            JToken nextMasterRegIdToken = null;
+            if (Cursor.Metadata.TryGetValue("nextMasterRegId", out nextMasterRegIdToken))
+            {
+                nextMasterRegId = nextMasterRegIdToken.ToObject<int>();
+            }
 
             // Get the catalog index
             Uri catalogIndexUri = new Uri(Config.GetProperty("CatalogIndex"));
 
-            JObject index = await _httpClient.GetJObjectAsync(catalogIndexUri);
+            Log("Reading index entries");
 
-            List<Tuple<DateTime, Uri>> pages = new List<Tuple<DateTime,Uri>>();
+            var indexReader = new CatalogIndexReader(catalogIndexUri);
 
-            foreach (var item in index["items"])
+            var indexEntries = await indexReader.GetEntries();
+
+            Log("Finding new or editted entries");
+
+            var changedEntries = new HashSet<string>(indexEntries.Where(e => e.CommitTimeStamp.CompareTo(position) > 0)
+                                                                    .Select(e => e.Id.ToLowerInvariant()));
+
+            DateTime newPosition = indexEntries.Select(e => e.CommitTimeStamp).OrderByDescending(e => e).FirstOrDefault();
+
+            Dictionary<string, Uri[]> batches = new Dictionary<string, Uri[]>(StringComparer.OrdinalIgnoreCase);
+
+            var idComparer = CatalogIndexEntry.IdComparer;
+
+            foreach (var entry in changedEntries)
             {
-                pages.Add(new Tuple<DateTime, Uri>(DateTime.Parse(item["commitTimeStamp"].ToString()), new Uri(item["@id"].ToString())));
+                batches.Add(entry, indexEntries.Where(e => StringComparer.OrdinalIgnoreCase.Equals(e.Id, entry))
+                    .OrderBy(e => e.CommitTimeStamp)
+                    .Select(e => e.Uri)
+                    .ToArray());
             }
 
-            pages.Sort(SortPages);
-
-            var newPages = pages.Where(p => p.Item1.CompareTo(position) > 0).ToList();
-
-            if (newPages.Count > 0)
+            if (batches.Count > 0)
             {
-                var jsonPages = GetPages(pages.Select(t => t.Item2));
+                Log("Batching entries");
 
-                ConcurrentDictionary<string, ConcurrentQueue<Uri>> batches = new ConcurrentDictionary<string, ConcurrentQueue<Uri>>(StringComparer.OrdinalIgnoreCase);
+                var queueClient = Account.CreateCloudQueueClient();
 
-                foreach (var newPage in newPages)
+                var batchQueue = queueClient.GetQueueReference(CantonConstants.RegBatchQueue);
+                var masterQueue = queueClient.GetQueueReference(CantonConstants.RegMasterBatchQueue);
+
+                ParallelOptions options = new ParallelOptions();
+                options.MaxDegreeOfParallelism = 64;
+
+                int regBatchId = 0;
+
+                Parallel.ForEach(changedEntries, options, id =>
                 {
-                    //foreach (var item in newPage.["items"])
-                    //{
-                    //    string id = item["nuget:id"].ToString();
-                    //}
-                }
+                    int curBatchId = 0;
 
+                    lock (this)
+                    {
+                        curBatchId = regBatchId;
+                        regBatchId++;
+                    }
+
+                    JObject summary = new JObject();
+                    summary.Add("submitted", DateTime.UtcNow.ToString("O"));
+                    summary.Add("failures", 0);
+                    summary.Add("host", Host);
+                    summary.Add("cantonRegBatchId", regBatchId);
+                    summary.Add("packageId", id);
+                    
+                    JArray uris = new JArray();
+
+                    foreach (var uri in batches[id])
+                    {
+                        uris.Add(uri.AbsoluteUri);
+                    }
+
+                    summary.Add("uris", uris);
+
+                    string json = summary.ToString();
+
+                    byte[] data = CantonUtilities.Compress(json);
+
+                    CloudQueueMessage message = new CloudQueueMessage(data);
+                    batchQueue.AddMessage(message);
+                });
+
+                JObject masterRecord = new JObject();
+                masterRecord.Add("submitted", DateTime.UtcNow.ToString("O"));
+                masterRecord.Add("failures", 0);
+                masterRecord.Add("host", Host);
+                masterRecord.Add("highestCantonRegBatchId", (regBatchId - 1));
+                masterRecord.Add("cantonMasterRegBatchId", nextMasterRegId);
+
+                // mark this with the last commit we included
+                Cursor.Position = newPosition;
+
+                JObject metadata = new JObject();
+                metadata.Add("nextMasterRegId", nextMasterRegId + 1);
+                Cursor.Metadata = metadata;
+
+                await Cursor.Save();
             }
-        }
-
-        private ConcurrentDictionary<Uri, JObject> GetPages(IEnumerable<Uri> uris)
-        {
-            ConcurrentDictionary<Uri, JObject> pages = new ConcurrentDictionary<Uri, JObject>();
-
-            ParallelOptions options = new ParallelOptions();
-            options.MaxDegreeOfParallelism = 8;
-
-            Parallel.ForEach(uris.ToArray(), options, uri =>
-            {
-                var task = _httpClient.GetJObjectAsync(uri);
-                task.Wait();
-
-                pages.TryAdd(uri, task.Result);
-            });
-
-            return pages;
         }
 
         private static int SortPages(Tuple<DateTime, Uri> x, Tuple<DateTime, Uri> y)

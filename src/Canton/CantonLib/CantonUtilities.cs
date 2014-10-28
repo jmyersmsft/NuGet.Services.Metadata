@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -12,6 +13,33 @@ namespace NuGet.Canton
 {
     public static class CantonUtilities
     {
+        public static byte[] Compress(string data)
+        {
+            using (var compressedStream = new MemoryStream())
+            {
+                using (var zipStream = new GZipStream(compressedStream, CompressionMode.Compress))
+                {
+                    zipStream.Write(Encoding.UTF8.GetBytes(data), 0, data.Length);
+                    zipStream.Close();
+                    return compressedStream.ToArray();
+                }
+            }
+        }
+
+        public static string Decompress(byte[] data)
+        {
+            using (var compressedStream = new MemoryStream(data))
+            {
+                using (var zipStream = new GZipStream(compressedStream, CompressionMode.Decompress))
+                {
+                    using (StreamReader reader = new StreamReader(zipStream))
+                    {
+                        return reader.ReadToEnd();
+                    }
+                }
+            }
+        }
+
         public static void ReplaceIRI(IGraph graph, Uri oldIRI, Uri newIRI)
         {
             // replace the local IRI with the NuGet IRI

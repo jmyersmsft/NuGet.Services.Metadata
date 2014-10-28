@@ -24,6 +24,16 @@ namespace NuGet.Canton
         public const string CatalogCommitQueue = "cantoncatalogcommits";
 
         /// <summary>
+        /// Contains batches ready for package regs.
+        /// </summary>
+        public const string RegBatchQueue = "cantonregbatches";
+
+        /// <summary>
+        /// Contains the master entry with info about the RegBatchQueue items.
+        /// </summary>
+        public const string RegMasterBatchQueue = "cantonregbatchesmaster";
+
+        /// <summary>
         /// Canton cursor table.
         /// </summary>
         public const string CursorTable = "cantoncursors";
