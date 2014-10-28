@@ -103,6 +103,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BatchRegistrationCollector.cs" />
     <Compile Include="CantonCatalogItem.cs" />
     <Compile Include="CantonCursor.cs" />
     <Compile Include="CantonUtilities.cs" />
@@ -113,6 +114,7 @@
     <Compile Include="GalleryGraphAddon.cs" />
     <Compile Include="jobs\CatalogPageCommitJob.cs" />
     <Compile Include="jobs\CursorQueueFedJob.cs" />
+    <Compile Include="jobs\QueueRegBatchesJob.cs" />
     <Compile Include="jobs\RegistrationJob.cs" />
     <Compile Include="OriginGraphAddon.cs" />
     <Compile Include="PageCreator.cs" />

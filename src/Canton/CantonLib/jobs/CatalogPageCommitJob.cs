@@ -1,6 +1,7 @@
 ﻿using Microsoft.WindowsAzure.Storage.Blob;
 using Microsoft.WindowsAzure.Storage.Queue;
 using Newtonsoft.Json.Linq;
+using NuGet.Services.Metadata.Catalog;
 using NuGet.Services.Metadata.Catalog.Maintenance;
 using NuGet.Services.Metadata.Catalog.Persistence;
 using System;
@@ -12,12 +13,13 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using VDS.RDF;
 
 namespace NuGet.Canton
 {
     public class CatalogPageCommitJob : CursorQueueFedJob
     {
-        private const int BatchSize = 600;
+        private const int BatchSize = 2000;
 
         public CatalogPageCommitJob(Config config, Storage storage)
             : base(config, storage, CantonConstants.CatalogPageQueue, "catalogpagecommit")
@@ -292,6 +294,7 @@ namespace NuGet.Canton
             orderedBatch.Sort(CantonCatalogItem.Compare);
 
             int lastHighestCommit = 0;
+            DateTime? latestPublished = null;
 
             // add the items to the writer
             foreach (var orderedItem in orderedBatch)
@@ -305,6 +308,9 @@ namespace NuGet.Canton
             // only save the cursor if we did something
             if (lastHighestCommit > 0)
             {
+                // find the most recent package
+                latestPublished = batchItems.Select(c => c.Published).OrderByDescending(d => d).FirstOrDefault();
+
                 // update the cursor
                 JObject obj = new JObject();
                 // add one here since we are already added the current number
@@ -316,14 +322,20 @@ namespace NuGet.Canton
                 cursorTask = Cursor.Save();
             }
 
-            Stopwatch timer = new Stopwatch();
-            timer.Start();
+            if (writer.Count > 0)
+            {
+                // perform the commit
+                Stopwatch timer = new Stopwatch();
+                timer.Start();
 
-            // commit
-            await writer.Commit();
+                IGraph commitData = PackageCatalog.CreateCommitMetadata(writer.RootUri, latestPublished, latestPublished);
 
-            timer.Stop();
-            Console.WriteLine("Commit duration: " + timer.Elapsed);
+                // commit
+                await writer.Commit(DateTime.UtcNow, commitData);
+
+                timer.Stop();
+                Console.WriteLine("Commit duration: " + timer.Elapsed);
+            }
 
             if (cursorTask != null)
             {

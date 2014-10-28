@@ -25,6 +25,7 @@ namespace NuGet.Canton
         private CloudStorageAccount _account;
         private Uri _uri;
         private readonly int _cantonCommitId;
+        private DateTime _published;
 
         // the catalog writer will dipose of this
         private Graph _graph;
@@ -37,6 +38,36 @@ namespace NuGet.Canton
             _account = account;
             _cantonCommitId = cantonCommitId;
             _graphUriFixed = false;
+            _published = DateTime.MinValue;
+        }
+
+        /// <summary>
+        /// Get the publish date from the graph. If the graph has not been created DateTime.MinValue is returned.
+        /// </summary>
+        public DateTime Published
+        {
+            get
+            {
+                if (_published == DateTime.MinValue)
+                {
+                    INode rdfTypePredicate = _graph.CreateUriNode(Schema.Predicates.Type);
+                    Triple resource = _graph.GetTriplesWithPredicateObject(rdfTypePredicate, _graph.CreateUriNode(GetItemType())).First();
+
+                    var pubTriple = _graph.GetTriplesWithSubjectPredicate(resource.Subject, _graph.CreateUriNode(Schema.Predicates.Published)).SingleOrDefault();
+
+                    if  (pubTriple != null)
+                    {
+                        ILiteralNode node = pubTriple.Object as ILiteralNode;
+
+                        if (node != null)
+                        {
+                            _published = DateTime.Parse(node.Value);
+                        }
+                    }
+                }
+
+                return _published;
+            }
         }
 
         public int CantonCommitId
