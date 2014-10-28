@@ -53,7 +53,8 @@ namespace NuGet.Services.Metadata.Catalog.Collecting
             }
             catch (Exception e)
             {
-                throw new Exception(string.Format("Process id = {0}", sortedGraphs.Key), e);
+                // throw new Exception(string.Format("Process id = {0}", sortedGraphs.Key), e);
+                Console.WriteLine(string.Format("!!Unable to generate registration for {0}", sortedGraphs.Key));
             }
         }
 

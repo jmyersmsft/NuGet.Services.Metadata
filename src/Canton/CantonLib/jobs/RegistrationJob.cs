@@ -40,14 +40,14 @@ namespace NuGet.Canton
 
             var indexUri = new Uri(Config.GetProperty("CatalogIndex"));
 
-            bool error = false;
+            //bool error = false;
             try
             {
                 await collector.Run(httpClient, indexUri, cursor);
             }
             catch (Exception ex)
             {
-                error = true;
+                //error = true;
                 LogError("Update error: " + ex.ToString());
             }
 
