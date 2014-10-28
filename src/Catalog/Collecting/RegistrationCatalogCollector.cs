@@ -42,13 +42,17 @@ namespace NuGet.Services.Metadata.Catalog.Collecting
 
                 int total = count + sortedGraphs.Value.Count;
 
+                //Uri regBase = new Uri(_storageFactory.BaseAddress + sortedGraphs.Key.ToLowerInvariant() + "/");
+
+                Uri regBase = _storageFactory.BaseAddress;
+
                 if (total < PackageCountThreshold)
                 {
-                    await SaveSmallRegistration(storage, _storageFactory.BaseAddress, sortedGraphs.Value);
+                    await SaveSmallRegistration(storage, regBase, sortedGraphs.Value);
                 }
                 else
                 {
-                    await SaveLargeRegistration(storage, _storageFactory.BaseAddress, sortedGraphs.Value, json);
+                    await SaveLargeRegistration(storage, regBase, sortedGraphs.Value, json);
                 }
             }
             catch (Exception e)

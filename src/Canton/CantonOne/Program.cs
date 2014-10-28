@@ -34,6 +34,9 @@ namespace NuGet.Canton.One
 
             CloudStorageAccount account = CloudStorageAccount.Parse(config.GetProperty("StorageConnectionString"));
 
+            CloudStorageAccount outputAccount = CloudStorageAccount.Parse(config.GetProperty("OutputStorageConnectionString"));
+            Uri baseAddress = new Uri(config.GetProperty("BaseAddress"));
+
             Queue<CantonJob> jobs = new Queue<CantonJob>();
 
             // set up the storage account
@@ -46,7 +49,8 @@ namespace NuGet.Canton.One
             //jobs.Enqueue(new CatalogPageJob(config, new AzureStorage(account, config.GetProperty("tmp")), CantonConstants.GalleryPagesQueue));
 
             // commit pages to the catalog
-            jobs.Enqueue(new CatalogPageCommitJob(config, new AzureStorage(account, config.GetProperty("CatalogContainer"))));
+            jobs.Enqueue(new CatalogPageCommitJob(config, new AzureStorage(outputAccount, config.GetProperty("CatalogContainer"),
+                string.Empty, new Uri(baseAddress.AbsoluteUri +  config.GetProperty("CatalogContainer") + "/"))));
 
             // create registration blobs
             // jobs.Enqueue(new RegistrationJob(config, new AzureStorage(account, config.GetProperty("RegistrationContainer")), new AzureStorageFactory(account, config.GetProperty("RegistrationContainer"))));

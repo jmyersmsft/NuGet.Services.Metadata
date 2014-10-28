@@ -30,13 +30,19 @@ namespace NuGet.Canton.Registrations
 
             CloudStorageAccount account = CloudStorageAccount.Parse(config.GetProperty("StorageConnectionString"));
 
+            CloudStorageAccount outputAccount = CloudStorageAccount.Parse(config.GetProperty("OutputStorageConnectionString"));
+            Uri baseAddress = new Uri(config.GetProperty("BaseAddress"));
+
             Queue<CantonJob> jobs = new Queue<CantonJob>();
 
             // set up the storage account
             jobs.Enqueue(new InitStorageJob(config));
 
+            Uri regBase = new Uri(baseAddress, config.GetProperty("RegistrationContainer") + "/");
+
             // create registration blobs
-            jobs.Enqueue(new RegistrationJob(config, new AzureStorage(account, config.GetProperty("RegistrationContainer")), new AzureStorageFactory(account, config.GetProperty("RegistrationContainer"))));
+            jobs.Enqueue(new RegistrationJob(config, new AzureStorage(outputAccount, config.GetProperty("RegistrationContainer"), string.Empty, regBase),
+                                                     new AzureStorageFactory(outputAccount, config.GetProperty("RegistrationContainer"), null, regBase)));
 
             Stopwatch timer = new Stopwatch();
 

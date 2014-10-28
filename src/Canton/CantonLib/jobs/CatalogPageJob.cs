@@ -118,10 +118,13 @@ namespace NuGet.Canton
                 }
 
                 // get the next work item
-                messages = new List<CloudQueueMessage>();
                 if (_run)
                 {
                     messages = Queue.GetMessages(32, hold).ToList();
+                }
+                else
+                {
+                    messages = new List<CloudQueueMessage>();
                 }
 
                 // let deletes catch up
