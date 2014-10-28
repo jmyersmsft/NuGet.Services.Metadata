@@ -394,7 +394,10 @@ namespace NuGet.Services.Metadata.Catalog
                     ArtifactReader artifactReader = new ArtifactReader(reader);
 
                     supportedFrameworks = artifactReader.GetSupportedFrameworks();
+
+                    #if PACKAGEENTRIES
                     groups = artifactReader.GetArtifactGroups();
+                    #endif
                 }
             }
             catch (Exception e)
@@ -409,6 +412,7 @@ namespace NuGet.Services.Metadata.Catalog
         {
             IList<PackageEntry> result = new List<PackageEntry>();
 
+            #if PACKAGEENTRIES
             foreach (ZipArchiveEntry entry in package.Entries)
             {
                 if (entry.FullName.EndsWith("/.rels", StringComparison.OrdinalIgnoreCase))
@@ -428,6 +432,7 @@ namespace NuGet.Services.Metadata.Catalog
 
                 result.Add(new PackageEntry(entry));
             }
+            #endif
 
             return result;
         }

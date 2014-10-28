@@ -19,27 +19,35 @@ namespace NuGet.Canton
     /// <summary>
     /// Background loading pre-built page
     /// </summary>
-    public class CantonCatalogItem : PackageCatalogItem, IDisposable
+    public class CantonCatalogItem : PackageCatalogItem, IComparable<CantonCatalogItem>
     {
         private ICloudBlob _blob;
-        private Task _task;
-        private ManualResetEventSlim _sem;
         private CloudStorageAccount _account;
         private Uri _uri;
+        private readonly int _cantonCommitId;
 
         // the catalog writer will dipose of this
         private Graph _graph;
+        private bool _graphUriFixed;
 
-        public CantonCatalogItem(CloudStorageAccount account, Uri uri)
+        public CantonCatalogItem(CloudStorageAccount account, Uri uri, int cantonCommitId)
             : base()
         {
             _uri = uri;
             _account = account;
-            _sem = new ManualResetEventSlim();
-            _task = Task.Run(() => LoadGraph());
+            _cantonCommitId = cantonCommitId;
+            _graphUriFixed = false;
         }
 
-        private void LoadGraph()
+        public int CantonCommitId
+        {
+            get
+            {
+                return _cantonCommitId;
+            }
+        }
+
+        public void LoadGraph()
         {
             var client = _account.CreateCloudBlobClient();
             _blob = client.GetBlobReferenceFromServer(_uri);
@@ -59,14 +67,10 @@ namespace NuGet.Canton
             }
 
             SetIdVersionFromGraph(_graph);
-
-            _sem.Set();
         }
 
         public async Task DeleteBlob()
         {
-            _sem.Wait();
-
             await _blob.DeleteIfExistsAsync();
         }
 
@@ -77,30 +81,52 @@ namespace NuGet.Canton
 
         public override IGraph CreateContentGraph(CatalogContext context)
         {
-            _sem.Wait();
+            if (!_graphUriFixed)
+            {
+                _graphUriFixed = true;
 
-            INode rdfTypePredicate = _graph.CreateUriNode(Schema.Predicates.Type);
-            Triple resource = _graph.GetTriplesWithPredicateObject(rdfTypePredicate, _graph.CreateUriNode(GetItemType())).First();
+                INode rdfTypePredicate = _graph.CreateUriNode(Schema.Predicates.Type);
+                Triple resource = _graph.GetTriplesWithPredicateObject(rdfTypePredicate, _graph.CreateUriNode(GetItemType())).First();
 
-            Uri oldUri = ((IUriNode)resource.Subject).Uri;
-            Uri newUri = GetItemAddress();
+                Uri oldUri = ((IUriNode)resource.Subject).Uri;
+                Uri newUri = GetItemAddress();
 
-            CantonUtilities.ReplaceIRI(_graph, oldUri, newUri);
+                CantonUtilities.ReplaceIRI(_graph, oldUri, newUri);
+            }
 
             return _graph;
         }
 
-        public override IGraph CreatePageContent(CatalogContext context)
+        private StorageContent _content;
+        public override StorageContent CreateContent(CatalogContext context)
         {
-            _sem.Wait();
+            if (_content == null)
+            {
+                _content = base.CreateContent(context);
+            }
 
-            return base.CreatePageContent(context);
+            return _content;
         }
 
-        public void Dispose()
+        private IGraph _pageContent;
+        public override IGraph CreatePageContent(CatalogContext context)
         {
-            _task.Dispose();
-            _sem.Dispose();
+            if (_pageContent == null)
+            {
+                _pageContent = base.CreatePageContent(context);
+            }
+
+            return _pageContent;
+        }
+
+        public int CompareTo(CantonCatalogItem other)
+        {
+            return CantonCommitId.CompareTo(other.CantonCommitId);
+        }
+
+        public static int Compare(CantonCatalogItem x, CantonCatalogItem y)
+        {
+            return x.CompareTo(y);
         }
     }
 }

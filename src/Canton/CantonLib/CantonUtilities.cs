@@ -66,11 +66,20 @@ namespace NuGet.Canton
 
             ConsoleCancelEventHandler handler = (sender, e) =>
                 {
-                    run = false;
-
-                    if (currentJob != null)
+                    if (run)
                     {
-                        currentJob.Stop().Wait();
+                        Console.WriteLine("Ctrl+C caught in Run");
+                        e.Cancel = true;
+                        run = false;
+
+                        if (currentJob != null)
+                        {
+                            currentJob.Stop().Wait();
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("2nd Ctrl+C caught in run, ignoring");
                     }
                 };
 
@@ -108,12 +117,21 @@ namespace NuGet.Canton
 
             ConsoleCancelEventHandler handler = (sender, e) =>
             {
-                run = false;
-
-                Parallel.ForEach(currentJobs.ToArray(), job =>
+                if (run)
                 {
-                    job.Stop().Wait();
-                });
+                    Console.WriteLine("Ctrl+C caught in Run");
+                    e.Cancel = true;
+                    run = false;
+
+                    foreach (var job in currentJobs.ToArray())
+                    {
+                        job.Stop().Wait();
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("2nd Ctrl+C caught in Run ignoring");
+                }
             };
 
             try
@@ -142,6 +160,10 @@ namespace NuGet.Canton
             catch (Exception ex)
             {
                 Log(ex.ToString(), "canton-job-exceptions.txt");
+            }
+            finally
+            {
+                Console.CancelKeyPress -= handler;
             }
         }
 

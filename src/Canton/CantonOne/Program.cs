@@ -13,6 +13,8 @@ namespace NuGet.Canton.One
 {
     class Program
     {
+        static bool _run = true;
+
         /// <summary>
         /// Canton jobs that can only run as single instances.
         /// </summary>
@@ -23,6 +25,8 @@ namespace NuGet.Canton.One
                 Console.WriteLine(".exe <config path>");
                 Environment.Exit(1);
             }
+
+            Console.CancelKeyPress += Console_CancelKeyPress;
 
             CantonUtilities.Init();
 
@@ -52,7 +56,7 @@ namespace NuGet.Canton.One
             // avoid flooding the gallery
             TimeSpan minWait = TimeSpan.FromSeconds(30);
 
-            while (true)
+            while (_run)
             {
                 timer.Restart();
                 CantonUtilities.RunJobs(jobs);
@@ -61,11 +65,28 @@ namespace NuGet.Canton.One
 
                 Console.WriteLine("Completed jobs in: " + timer.Elapsed);
 
-                if (waitTime.TotalSeconds > 0)
+                // min sleep
+                Thread.Sleep(60 * 1000);
+
+                if (waitTime.TotalSeconds > 0 && _run)
                 {
                     Console.WriteLine("Sleeping: " + waitTime.TotalSeconds + "s");
                     Thread.Sleep(waitTime);
                 }
+            }
+        }
+
+        static void Console_CancelKeyPress(object sender, ConsoleCancelEventArgs e)
+        {
+            if (_run)
+            {
+                Console.WriteLine("Ctrl+C caught in Main");
+                e.Cancel = true;
+                _run = false;
+            }
+            else
+            {
+                Console.WriteLine("2nd Ctrl+C caught, ignoring");
             }
         }
     }

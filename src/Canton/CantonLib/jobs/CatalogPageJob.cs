@@ -98,6 +98,10 @@ namespace NuGet.Canton
                         // clean up
                         nupkg.Delete();
                     }
+                    catch (Exception ex)
+                    {
+                        LogError("Unable to build catalog page for: " + galleryPageUri.AbsoluteUri + " Error: " + ex.ToString());
+                    }
                     finally
                     {
                         _queueTasks.Enqueue(Queue.DeleteMessageAsync(message));

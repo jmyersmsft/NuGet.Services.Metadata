@@ -4,6 +4,7 @@ using Newtonsoft.Json.Linq;
 using NuGet.Services.Metadata.Catalog.Maintenance;
 using NuGet.Services.Metadata.Catalog.Persistence;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -31,6 +32,8 @@ namespace NuGet.Canton
 
             var messages = Queue.GetMessages(32, hold).ToList();
 
+            Stack<Task> tasks = new Stack<Task>(2000);
+
             while (messages.Count > 0)
             {
                 foreach (var message in messages)
@@ -47,12 +50,14 @@ namespace NuGet.Canton
                     {
                         Console.WriteLine("Dupe id!");
                     }
-                }
 
-                Parallel.ForEach(messages, message =>
+                    tasks.Push(Queue.DeleteMessageAsync(message));
+
+                    if (all.Count % 10000 == 0)
                     {
-                        Queue.DeleteMessage(message);
-                    });
+                        Console.WriteLine(all.Count);
+                    }
+                }
 
                 // stop if we aren't maxing out
                 if (messages.Count == 32)
@@ -63,7 +68,16 @@ namespace NuGet.Canton
                 {
                     messages = new List<CloudQueueMessage>();
                 }
+
+                if (tasks.Count > 2000)
+                {
+                    Task.WaitAll(tasks.ToArray());
+                    tasks.Clear();
+                }
             }
+
+            Task.WaitAll(tasks.ToArray());
+            tasks.Clear();
 
             return all;
         }
@@ -88,18 +102,25 @@ namespace NuGet.Canton
 
             Dictionary<int, string> unQueuedMessages = new Dictionary<int, string>();
 
+            ParallelOptions options = new ParallelOptions();
+            options.MaxDegreeOfParallelism = 8;
+
             try
             {
                 using (AppendOnlyCatalogWriter writer = new AppendOnlyCatalogWriter(Storage, 600))
                 {
+                    // get everything in the queue
+                    Log("Getting work");
                     var newWork = GetWork();
+                    Log("Done getting work");
 
-                    // tasks that will be waited on as part of the commit
-                    Queue<Task> tasks = new Queue<Task>();
-                    Stack<CantonCatalogItem> itemStack = new Stack<CantonCatalogItem>();
+                    int lastHighestCommit = 0;
+
+                    Task commitTask = null;
+                    Task cursorTask = null;
 
                     // everything must run in canton commit order!
-                    while (newWork.Count > 0 || unQueuedMessages.Count > 0 || orderedMessages.Count > 0)
+                    while (_run && (newWork.Count > 0 || unQueuedMessages.Count > 0 || orderedMessages.Count > 0))
                     {
                         Log(String.Format("New: {0} Waiting: {1} Ordered: {2}", newWork.Count, unQueuedMessages.Count, orderedMessages.Count));
 
@@ -121,66 +142,84 @@ namespace NuGet.Canton
                             }
                         }
 
-                        while (unQueuedMessages.ContainsKey(cantonCommitId) && unQueuedMessages.Count < 3000)
+                        // load up the next 4096 work items we need
+                        while (unQueuedMessages.ContainsKey(cantonCommitId) && orderedMessages.Count < 4096)
                         {
                             JObject json = JObject.Parse(unQueuedMessages[cantonCommitId]);
 
                             orderedMessages.Enqueue(json);
                             unQueuedMessages.Remove(cantonCommitId);
+
                             cantonCommitId++;
 
                             giveup.Restart();
                         }
 
-                        while (orderedMessages.Count > 0)
-                        {
-                            JObject json = orderedMessages.Dequeue();
-                            int curId = json["cantonCommitId"].ToObject<int>();
-                            string resourceUriString = json["uri"].ToString();
+                        // just take up to the batch size
+                        Queue<JObject> currentBatch = new Queue<JObject>();
 
-                            if (StringComparer.OrdinalIgnoreCase.Equals(resourceUriString, "https://failed"))
+                        while (currentBatch.Count < BatchSize && orderedMessages.Count > 0)
+                        {
+                            currentBatch.Enqueue(orderedMessages.Dequeue());
+                        }
+
+                        ConcurrentBag<CantonCatalogItem> batchItems = new ConcurrentBag<CantonCatalogItem>();
+
+                        Parallel.ForEach(currentBatch, options, workJson =>
+                        {
+                            int curId = workJson["cantonCommitId"].ToObject<int>();
+                            string resourceUriString = workJson["uri"].ToString();
+
+                            if (!StringComparer.OrdinalIgnoreCase.Equals(resourceUriString, "https://failed"))
+                            {
+                                Uri resourceUri = new Uri(resourceUriString);
+
+                                // the page is loaded from storage in the background
+                                CantonCatalogItem item = new CantonCatalogItem(Account, resourceUri, curId);
+
+                                // download the graph
+                                item.LoadGraph();
+
+                                batchItems.Add(item);
+                            }
+                            else
                             {
                                 Log("Skipping failed page: " + cantonCommitId);
-                                continue;
                             }
+                        });
 
-                            Uri resourceUri = new Uri(resourceUriString);
+                        if (commitTask != null)
+                        {
+                            await commitTask;
+                        }
 
-                            // the page is loaded from storage in the background
-                            CantonCatalogItem item = new CantonCatalogItem(Account, resourceUri);
-                            itemStack.Push(item);
-                            writer.Add(item);
+                        if (cursorTask != null)
+                        {
+                            await cursorTask;
+                        }
 
-                            if (writer.Count >= BatchSize)
-                            {
-                                tasks.Enqueue(writer.Commit());
+                        var orderedBatch = batchItems.ToList();
+                        orderedBatch.Sort(CantonCatalogItem.Compare);
 
-                                // update the cursor
-                                JObject obj = new JObject();
-                                obj.Add("cantonCommitId", curId);
-                                Log("Cursor cantonCommitId: " + curId);
+                        // add the items to the writer
+                        foreach (var orderedItem in orderedBatch)
+                        {
+                            lastHighestCommit = orderedItem.CantonCommitId;
+                            writer.Add(orderedItem);
+                        }
 
-                                Cursor.Position = DateTime.UtcNow;
-                                Cursor.Metadata = obj;
-                                tasks.Enqueue(Cursor.Save());
+                        if (writer.Count >= BatchSize)
+                        {
+                            commitTask = writer.Commit();
 
-                                Task.WaitAll(tasks.ToArray());
-                                tasks.Clear();
+                            // update the cursor
+                            JObject obj = new JObject();
+                            obj.Add("cantonCommitId", lastHighestCommit);
+                            Log("Cursor cantonCommitId: " + lastHighestCommit);
 
-                                try
-                                {
-                                    // clean up our items
-                                    foreach (var cc in itemStack)
-                                    {
-                                        // TODO: clean up the tmp page also
-                                        cc.Dispose();
-                                    }
-                                }
-                                catch (Exception ex)
-                                {
-                                    LogError("item dispose failure: " + ex.ToString());
-                                }
-                            }
+                            Cursor.Position = DateTime.UtcNow;
+                            Cursor.Metadata = obj;
+                            cursorTask = Cursor.Save();
                         }
 
                         // get the next work item
@@ -212,21 +251,29 @@ namespace NuGet.Canton
                         }
                     }
 
+                    if (commitTask != null)
+                    {
+                        await commitTask;
+                    }
+
+                    if (cursorTask != null)
+                    {
+                        await cursorTask;
+                    }
+
+
                     if (writer.Count > 0)
                     {
-                        tasks.Enqueue(writer.Commit());
+                        await writer.Commit();
 
                         // update the cursor
                         JObject obj = new JObject();
-                        obj.Add("cantonCommitId", cantonCommitId);
-                        Log("cantonCommitId: " + cantonCommitId);
+                        obj.Add("cantonCommitId", lastHighestCommit);
+                        Log("Cursor cantonCommitId: " + lastHighestCommit);
 
                         Cursor.Position = DateTime.UtcNow;
                         Cursor.Metadata = obj;
-                        tasks.Enqueue(Cursor.Save());
-
-                        Task.WaitAll(tasks.ToArray());
-                        tasks.Clear();
+                        await Cursor.Save();
                     }
                 }
             }
@@ -235,15 +282,15 @@ namespace NuGet.Canton
                 Log("returning work to the queue");
 
                 // put everything back into the queue
-                ParallelOptions options = new ParallelOptions();
-                options.MaxDegreeOfParallelism = 128;
+                ParallelOptions qOpts = new ParallelOptions();
+                qOpts.MaxDegreeOfParallelism = 128;
 
-                Parallel.ForEach(orderedMessages, options, json =>
+                Parallel.ForEach(orderedMessages, qOpts, json =>
                     {
                         Queue.AddMessage(new CloudQueueMessage(json.ToString()));
                     });
 
-                Parallel.ForEach(unQueuedMessages.Values, options, s =>
+                Parallel.ForEach(unQueuedMessages.Values, qOpts, s =>
                 {
                     Queue.AddMessage(new CloudQueueMessage(s));
                 });
