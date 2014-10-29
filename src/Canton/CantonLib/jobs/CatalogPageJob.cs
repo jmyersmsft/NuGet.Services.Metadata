@@ -64,9 +64,9 @@ namespace NuGet.Canton
 
                         // graph modififactions
                         GraphAddon[] addons = new GraphAddon[] { 
-                                new OriginGraphAddon(galleryPageUri.AbsoluteUri, cantonCommitId),
-                                new GalleryGraphAddon(galleryPage)
+                                new OriginGraphAddon(galleryPageUri.AbsoluteUri, cantonCommitId)
                             };
+                        //new GalleryGraphAddon(galleryPage)
 
                         string id = galleryPage["id"].ToString();
                         string version = galleryPage["version"].ToString();

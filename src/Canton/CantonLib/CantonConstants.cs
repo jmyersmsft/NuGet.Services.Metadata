@@ -33,6 +33,10 @@ namespace NuGet.Canton
         /// </summary>
         public const string RegMasterBatchQueue = "cantonregbatchesmaster";
 
+        /// Finished registration pages waiting in temp.
+        /// </summary>
+        public const string RegBatchPagesQueue = "cantonregpages";
+
         /// <summary>
         /// Canton cursor table.
         /// </summary>

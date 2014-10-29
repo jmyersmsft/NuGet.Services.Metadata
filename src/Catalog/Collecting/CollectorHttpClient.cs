@@ -25,9 +25,14 @@ namespace NuGet.Services.Metadata.Catalog.Collecting
             get { return _requestCount; }
         }
 
-        public Task<JObject> GetJObjectAsync(Uri address)
+        protected void InReqCount()
         {
             Interlocked.Increment(ref _requestCount);
+        }
+
+        public virtual Task<JObject> GetJObjectAsync(Uri address)
+        {
+            InReqCount();
 
             Task<string> task = GetStringAsync(address);
             return task.ContinueWith<JObject>((t) =>
@@ -43,7 +48,7 @@ namespace NuGet.Services.Metadata.Catalog.Collecting
             });
         }
 
-        public Task<IGraph> GetGraphAsync(Uri address)
+        public virtual Task<IGraph> GetGraphAsync(Uri address)
         {
             Task<JObject> task = GetJObjectAsync(address);
             return task.ContinueWith<IGraph>((t) =>

@@ -64,7 +64,7 @@ namespace NuGet.Canton.jobs
 
             if (batches.Count > 0)
             {
-                Log("Batching entries");
+                Log("Uploading batches to the queue.");
 
                 var queueClient = Account.CreateCloudQueueClient();
 
@@ -125,6 +125,8 @@ namespace NuGet.Canton.jobs
                 Cursor.Metadata = metadata;
 
                 await Cursor.Save();
+
+                Log("Finished. masterRegId: " + nextMasterRegId);
             }
         }
 
