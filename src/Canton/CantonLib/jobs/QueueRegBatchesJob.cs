@@ -92,6 +92,7 @@ namespace NuGet.Canton.jobs
                     summary.Add("host", Host);
                     summary.Add("cantonRegBatchId", regBatchId);
                     summary.Add("packageId", id);
+                    summary.Add("cantonMasterRegBatchId", nextMasterRegId);
                     
                     JArray uris = new JArray();
 
@@ -116,6 +117,9 @@ namespace NuGet.Canton.jobs
                 masterRecord.Add("host", Host);
                 masterRecord.Add("highestCantonRegBatchId", (regBatchId - 1));
                 masterRecord.Add("cantonMasterRegBatchId", nextMasterRegId);
+
+                CloudQueueMessage masterMessage = new CloudQueueMessage(masterRecord.ToString());
+                masterQueue.AddMessage(masterMessage);
 
                 // mark this with the last commit we included
                 Cursor.Position = newPosition;

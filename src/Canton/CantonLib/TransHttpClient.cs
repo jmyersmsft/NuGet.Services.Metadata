@@ -56,6 +56,7 @@ namespace NuGet.Canton
                 {
                     var task = blob.DownloadToStreamAsync(stream);
                     task.Wait();
+                    stream.Seek(0, SeekOrigin.Begin);
 
                     using (var reader = new StreamReader(stream))
                     {

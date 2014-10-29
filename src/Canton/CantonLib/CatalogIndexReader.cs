@@ -14,6 +14,7 @@ namespace NuGet.Canton
     {
         private readonly Uri _indexUri;
         private readonly CollectorHttpClient _httpClient;
+        private JObject _context;
 
         public CatalogIndexReader(Uri indexUri)
             : this(indexUri, new CollectorHttpClient())
@@ -27,10 +28,27 @@ namespace NuGet.Canton
             _httpClient = httpClient;
         }
 
+        public JObject GetContext()
+        {
+            if (_context == null)
+            {
+                GetEntries().Wait();
+            }
+
+            return _context;
+        }
+
 
         public async Task<IEnumerable<CatalogIndexEntry>> GetEntries()
         {
             JObject index = await _httpClient.GetJObjectAsync(_indexUri);
+
+            // save the context used on the index
+            JToken context = null;
+            if (index.TryGetValue("@context", out context))
+            {
+                _context = context as JObject;
+            }
 
             List<Tuple<DateTime, Uri>> pages = new List<Tuple<DateTime, Uri>>();
 
