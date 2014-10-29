@@ -3,15 +3,11 @@
         "@vocab": "http://schema.nuget.org/schema#",
         "catalog": "http://schema.nuget.org/catalog#",
         "xsd": "http://www.w3.org/2001/XMLSchema#",
-        "canton": "http://schema.nuget.org/canton#",
         "dependencies" : { "@id" : "dependency", "@container" : "@set" },
         "dependencyGroups" : { "@id" : "dependencyGroup", "@container" : "@set" },
         "packageEntries": { "@id": "packageEntry", "@container": "@set" },
         "supportedFrameworks": { "@id": "supportedFramework", "@container": "@set" },
-        "assetGroups": { "@id": "assetGroup", "@container": "@set" },
-        "assets": { "@id": "asset", "@container": "@set" },
         "tags": { "@id": "tag", "@container": "@set" },
-        "assetGroupProperties": { "@id": "assetGroupProperty", "@container": "@set" },
         "published" : { "@type" : "xsd:dateTime" },
         "catalog:commitTimeStamp" : { "@type" : "xsd:dateTime" }
     }

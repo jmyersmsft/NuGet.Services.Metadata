@@ -63,10 +63,11 @@ namespace NuGet.Canton
                         JObject galleryPage = await GetJson(galleryPageUri);
 
                         // graph modififactions
-                        GraphAddon[] addons = new GraphAddon[] { 
-                                new OriginGraphAddon(galleryPageUri.AbsoluteUri, cantonCommitId)
-                            };
-                        //new GalleryGraphAddon(galleryPage)
+                        GraphAddon[] addons = new GraphAddon[0];
+                        //GraphAddon[] addons = new GraphAddon[] { 
+                        //        new OriginGraphAddon(galleryPageUri.AbsoluteUri, cantonCommitId),
+                        //        new GalleryGraphAddon(galleryPage)
+                        //    };
 
                         string id = galleryPage["id"].ToString();
                         string version = galleryPage["version"].ToString();
@@ -75,7 +76,7 @@ namespace NuGet.Canton
                         JToken publishedToken = null;
                         if (galleryPage.TryGetValue("published", out publishedToken))
                         {
-                            published = DateTime.Parse(publishedToken.ToString());
+                            published = publishedToken.ToObject<DateTime>();
                         }
 
                         // download the nupkg
