@@ -73,6 +73,8 @@ namespace NuGet.Canton
             });
 
 
+            Uri contentBaseAddress = new Uri(Config.GetProperty("ContentBaseAddress"));
+
             if (batches.Count > 0)
             {
                 Log("Building registrations from: " + position.ToString("O"));
@@ -86,23 +88,43 @@ namespace NuGet.Canton
                         Console.WriteLine("Single batch run.");
                     }
 
-                    var ids = batches.OrderByDescending(p => p.Value.Count).Select(p => p.Key).ToArray();
+                    var ids = batches.Keys.OrderBy(s => s).ToArray();
+
+                    Stopwatch buildTimer = new Stopwatch();
+                    buildTimer.Start();
+                    int startingCount = ids.Length;
+
                     Parallel.ForEach(ids, options, id =>
                     {
                         try
                         {
                             BatchRegistrationCollector regCollector = new BatchRegistrationCollector(_factory);
+                            regCollector.ContentBaseAddress = contentBaseAddress;
 
                             Stopwatch timer = new Stopwatch();
                             timer.Start();
 
-                            regCollector.ProcessGraphs(_client, id, batches[id], context).Wait();
+                            var uriGroup = batches[id].ToArray();
+
+                            regCollector.ProcessGraphs(_client, id, uriGroup, context).Wait();
+
+                            int rem = batches.Count;
 
                             timer.Stop();
-                            Log("Registrations Complete: " + id + " Duration: " + timer.Elapsed + " Uris: " + batches[id].Count);
+                            string log = String.Format("Completed: {0} Duration: {1} Uris: {2} Remaining Ids: {3} Loop: {4}", id, timer.Elapsed, uriGroup.Length, rem, i);
+                            Console.WriteLine(log);
+
+                            // stats
+                            double perPackage = buildTimer.Elapsed.TotalSeconds / (double)(startingCount - rem + 1);
+                            DateTime finish = DateTime.Now.AddSeconds(Math.Ceiling(perPackage * rem));
+
+                            Console.WriteLine("Estimated Finish: " + finish.ToString("O"));
 
                             ConcurrentBag<Uri> vals;
-                            batches.TryRemove(id, out vals);
+                            if (!batches.TryRemove(id, out vals))
+                            {
+                                Console.WriteLine("Unable to remove!");
+                            }
                         }
                         catch (Exception ex)
                         {

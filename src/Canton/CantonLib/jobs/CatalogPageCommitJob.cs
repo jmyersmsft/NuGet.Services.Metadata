@@ -19,7 +19,7 @@ namespace NuGet.Canton
 {
     public class CatalogPageCommitJob : CursorQueueFedJob
     {
-        private const int BatchSize = 2000;
+        private const int BatchSize = 500;
 
         public CatalogPageCommitJob(Config config, Storage storage)
             : base(config, storage, CantonConstants.CatalogPageQueue, "catalogpagecommit")
