@@ -40,10 +40,6 @@ namespace NuGet.Canton.Registrations
 
             Uri regBase = new Uri(baseAddress, config.GetProperty("RegistrationContainer") + "/");
 
-            // create registration blobs
-            // jobs.Enqueue(new RegistrationJob(config, new AzureStorage(outputAccount, config.GetProperty("RegistrationContainer"), string.Empty, regBase),
-            //                                         new AzureStorageFactory(outputAccount, config.GetProperty("RegistrationContainer"), null, regBase)));
-
             TransHttpClient httpClient = new TransHttpClient(outputAccount, config.GetProperty("BaseAddress"));
 
             jobs.Enqueue(new PartitionedRegJob(config, new AzureStorage(outputAccount, config.GetProperty("RegistrationContainer"), string.Empty, regBase),

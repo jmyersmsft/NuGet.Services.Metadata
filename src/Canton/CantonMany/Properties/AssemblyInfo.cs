@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("DistributedMany")]
-[assembly: AssemblyDescription("")]
+[assembly: AssemblyTitle("CantonMany")]
+[assembly: AssemblyDescription("Canton jobs that can be run in parallel across multiple machines.")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("DistributedMany")]
+[assembly: AssemblyProduct("CantonMany")]
 [assembly: AssemblyCopyright("Copyright ©  2014")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]

@@ -43,22 +43,27 @@ namespace NuGet.Canton.One
             jobs.Enqueue(new InitStorageJob(config));
 
             // read the gallery to find new packages
-            // jobs.Enqueue(new QueueNewPackagesFromGallery(config, new AzureStorage(account, config.GetProperty("GalleryPageContainer"))));
+            jobs.Enqueue(new QueueNewPackagesFromGallery(config, new AzureStorage(account, config.GetProperty("GalleryPageContainer"))));
 
-            // tmp
-            //jobs.Enqueue(new CatalogPageJob(config, new AzureStorage(account, config.GetProperty("tmp")), CantonConstants.GalleryPagesQueue));
+            // this does the work of Many, just so this can all be in one .exe
+            jobs.Enqueue(new CatalogPageJob(config, new AzureStorage(account, config.GetProperty("tmp")), CantonConstants.GalleryPagesQueue));
 
             // commit pages to the catalog
             jobs.Enqueue(new CatalogPageCommitJob(config, new AzureStorage(outputAccount, config.GetProperty("CatalogContainer"),
                 string.Empty, new Uri(baseAddress.AbsoluteUri +  config.GetProperty("CatalogContainer") + "/"))));
 
-            // create registration blobs
-            // jobs.Enqueue(new RegistrationJob(config, new AzureStorage(account, config.GetProperty("RegistrationContainer")), new AzureStorageFactory(account, config.GetProperty("RegistrationContainer"))));
+            // registrations
+            Uri regBase = new Uri(baseAddress, config.GetProperty("RegistrationContainer") + "/");
+
+            TransHttpClient httpClient = new TransHttpClient(outputAccount, config.GetProperty("BaseAddress"));
+
+            jobs.Enqueue(new PartitionedRegJob(config, new AzureStorage(outputAccount, config.GetProperty("RegistrationContainer"), string.Empty, regBase),
+                new AzureStorageFactory(outputAccount, config.GetProperty("RegistrationContainer"), null, regBase), httpClient));
 
             Stopwatch timer = new Stopwatch();
 
             // avoid flooding the gallery
-            TimeSpan minWait = TimeSpan.FromSeconds(30);
+            TimeSpan minWait = TimeSpan.FromMinutes(10);
 
             while (_run)
             {
