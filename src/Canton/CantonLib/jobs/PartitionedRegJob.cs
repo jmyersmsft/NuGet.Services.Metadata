@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json.Linq;
+﻿using Microsoft.WindowsAzure.Storage;
+using Newtonsoft.Json.Linq;
 using NuGet.Services.Metadata.Catalog.Collecting;
 using NuGet.Services.Metadata.Catalog.Persistence;
 using System;
@@ -40,7 +41,7 @@ namespace NuGet.Canton
 
             Log("Reading index entries");
 
-            var indexReader = new CatalogIndexReader(catalogIndexUri);
+            var indexReader = new CatalogIndexReader(catalogIndexUri, _client);
 
             var indexEntries = await indexReader.GetEntries();
 

@@ -20,12 +20,6 @@ namespace NuGet.Canton
         private readonly string _azureBase;
         private readonly CloudBlobClient _blobClient;
 
-        public TransHttpClient(CloudStorageAccount account)
-            : this(account, null)
-        {
-
-        }
-
         public TransHttpClient(CloudStorageAccount account, string baseAddressInContent)
             : base()
         {
