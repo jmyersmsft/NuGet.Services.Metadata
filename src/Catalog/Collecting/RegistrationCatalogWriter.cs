@@ -3,7 +3,6 @@ using NuGet.Services.Metadata.Catalog.Maintenance;
 using NuGet.Services.Metadata.Catalog.Persistence;
 using NuGet.Versioning;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -78,14 +77,9 @@ namespace NuGet.Services.Metadata.Catalog.Collecting
 
         async Task<IDictionary<string, CatalogItemSummary>> PartitionAndSavePages(Guid commitId, DateTime commitTimeStamp, SortedDictionary<NuGetVersion, KeyValuePair<string, CatalogItemSummary>> versions)
         {
-            ConcurrentDictionary<string, CatalogItemSummary> newPageEntries = new ConcurrentDictionary<string, CatalogItemSummary>();
+            IDictionary<string, CatalogItemSummary> newPageEntries = new Dictionary<string, CatalogItemSummary>();
 
-            IEnumerable<IEnumerable<KeyValuePair<NuGetVersion, KeyValuePair<string, CatalogItemSummary>>>> partitions = Utils.Partition(versions, PartitionSize);
-
-            ParallelOptions options = new ParallelOptions();
-            options.MaxDegreeOfParallelism = 8;
-
-            Parallel.ForEach(partitions, options, partition =>
+            foreach (IEnumerable<KeyValuePair<NuGetVersion, KeyValuePair<string, CatalogItemSummary>>> partition in Utils.Partition(versions, PartitionSize))
             {
                 string lower = partition.First().Key.ToString();
                 string upper = partition.Last().Key.ToString();
@@ -98,18 +92,12 @@ namespace NuGet.Services.Metadata.Catalog.Collecting
                     newPageItemEntries.Add(version.Value);
                 }
 
-                using (IGraph extra = CreateExtraGraph(newPageUri, lower, upper))
-                {
-                    var saveTask = SaveIndexResource(newPageUri, Schema.DataTypes.CatalogPage, commitId, commitTimeStamp, newPageItemEntries, RootUri, extra);
-                    saveTask.Wait();
+                IGraph extra = CreateExtraGraph(newPageUri, lower, upper);
 
-                    if (!newPageEntries.TryAdd(newPageUri.AbsoluteUri, 
-                        new CatalogItemSummary(Schema.DataTypes.CatalogPage, commitId, commitTimeStamp, newPageItemEntries.Count, CreatePageSummary(newPageUri, lower, upper))))
-                    {
-                        throw new Exception("Duplicate key: " + newPageUri.AbsoluteUri);
-                    }
-                }
-            });
+                await SaveIndexResource(newPageUri, Schema.DataTypes.CatalogPage, commitId, commitTimeStamp, newPageItemEntries, RootUri, extra);
+
+                newPageEntries[newPageUri.AbsoluteUri] = new CatalogItemSummary(Schema.DataTypes.CatalogPage, commitId, commitTimeStamp, newPageItemEntries.Count, CreatePageSummary(newPageUri, lower, upper));
+            }
 
             return newPageEntries;
         }
