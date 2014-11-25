@@ -24,7 +24,7 @@ namespace NuGet.Services.Metadata.Catalog
 
         public async Task<bool> Run()
         {
-            return await Run(MemoryCursor.Min, MemoryCursor.Max);
+            return await Run(new MemoryCursor(MemoryCursor.Min.Value), new MemoryCursor(MemoryCursor.Max.Value));
         }
 
         public async Task<bool> Run(DateTime front, DateTime back)
