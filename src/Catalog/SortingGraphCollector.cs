@@ -25,11 +25,14 @@ namespace NuGet.Services.Metadata.Catalog
 
             ParallelOptions options = new ParallelOptions();
             options.MaxDegreeOfParallelism = 8;
+            bool isType = false;
 
             Parallel.ForEach(sortedBatch.Value, options, item =>
             {
+
                 if (Utils.IsType((JObject)context, item, _types))
                 {
+                    isType = true;
                     string itemUri = item["@id"].ToString();
                     var task = client.GetGraphAsync(new Uri(itemUri));
                     task.Wait();
@@ -41,7 +44,12 @@ namespace NuGet.Services.Metadata.Catalog
                 }
             });
 
-            await ProcessGraphs(new KeyValuePair<string, IDictionary<string, IGraph>>(sortedBatch.Key, graphs));
+            if (isType)
+            {
+                await ProcessGraphs(new KeyValuePair<string, IDictionary<string, IGraph>>(sortedBatch.Key, graphs));
+            }
+
+            //await ProcessGraphs(new KeyValuePair<string, IDictionary<string, IGraph>>(sortedBatch.Key, graphs));
         }
 
         protected abstract Task ProcessGraphs(KeyValuePair<string, IDictionary<string, IGraph>> sortedGraphs);

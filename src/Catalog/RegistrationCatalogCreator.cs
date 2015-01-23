@@ -12,12 +12,12 @@ namespace NuGet.Services.Metadata.Catalog
     public static class RegistrationCatalogCreator
     {
         public static async Task ProcessGraphs(
-            string id,
-            IDictionary<string, IGraph> sortedGraphs,
-            StorageFactory storageFactory,
-            Uri contentBaseAddress,
-            int partitionSize,
-            int packageCountThreshold)
+          string id,
+          IDictionary<string, IGraph> sortedGraphs,
+          StorageFactory storageFactory,
+          Uri contentBaseAddress,
+          int partitionSize,
+          int packageCountThreshold)
         {
             try
             {
@@ -45,7 +45,19 @@ namespace NuGet.Services.Metadata.Catalog
             }
         }
 
-        static async Task SaveSmallRegistration(Storage storage, Uri registrationBaseAddress, IDictionary<string, IGraph> items, Uri contentBaseAddress, int partitionSize)
+        public static async Task SaveRegistration(Storage storage, Uri registrationBaseAddress, IDictionary<string, IGraph> items, IList<Uri> cleanUpList, SingleGraphPersistence graphPersistence, Uri contentBaseAddress, int partitionSize)
+        {
+            using (RegistrationCatalogWriter writer = new RegistrationCatalogWriter(storage, partitionSize, cleanUpList, graphPersistence))
+            {
+                foreach (KeyValuePair<string, IGraph> item in items)
+                {
+                    writer.Add(new RegistrationCatalogItem(new Uri(item.Key), item.Value, contentBaseAddress, registrationBaseAddress));
+                }
+                await writer.Commit(DateTime.UtcNow);
+            }
+        }
+
+        public static async Task SaveSmallRegistration(Storage storage, Uri registrationBaseAddress, IDictionary<string, IGraph> items, Uri contentBaseAddress, int partitionSize)
         {
             SingleGraphPersistence graphPersistence = new SingleGraphPersistence(storage);
 
@@ -60,7 +72,7 @@ namespace NuGet.Services.Metadata.Catalog
             await storage.Save(graphPersistence.ResourceUri, content);
         }
 
-        static async Task SaveLargeRegistration(Storage storage, Uri registrationBaseAddress, IDictionary<string, IGraph> items, string existingRoot, Uri contentBaseAddress, int partitionSize)
+        public static async Task SaveLargeRegistration(Storage storage, Uri registrationBaseAddress, IDictionary<string, IGraph> items, string existingRoot, Uri contentBaseAddress, int partitionSize)
         {
             if (existingRoot != null)
             {
@@ -84,19 +96,7 @@ namespace NuGet.Services.Metadata.Catalog
             }
         }
 
-        static async Task SaveRegistration(Storage storage, Uri registrationBaseAddress, IDictionary<string, IGraph> items, IList<Uri> cleanUpList, SingleGraphPersistence graphPersistence, Uri contentBaseAddress, int partitionSize)
-        {
-            using (RegistrationCatalogWriter writer = new RegistrationCatalogWriter(storage, partitionSize, cleanUpList, graphPersistence))
-            {
-                foreach (KeyValuePair<string, IGraph> item in items)
-                {
-                    writer.Add(new RegistrationCatalogItem(new Uri(item.Key), item.Value, contentBaseAddress, registrationBaseAddress));
-                }
-                await writer.Commit(DateTime.UtcNow);
-            }
-        }
-
-        static void AddExistingItems(IGraph graph, IDictionary<string, IGraph> items)
+        public static void AddExistingItems(IGraph graph, IDictionary<string, IGraph> items)
         {
             TripleStore store = new TripleStore();
             store.Add(graph, true);

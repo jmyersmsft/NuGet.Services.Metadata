@@ -6,7 +6,7 @@ namespace NuGet.Services.Metadata.Catalog.Persistence
 {
     public class FileStorage : Storage
     {
-        public FileStorage(string baseAddress, string path) 
+        public FileStorage(string baseAddress, string path)
             : this(new Uri(baseAddress), path) { }
 
         public FileStorage(Uri baseAddress, string path)
@@ -23,8 +23,14 @@ namespace NuGet.Services.Metadata.Catalog.Persistence
             ResetStatistics();
         }
 
+        //File exists
+        public override bool Exists(string fileName)
+        {
+            return System.IO.File.Exists(fileName);
+        }
+
         public string Path
-        { 
+        {
             get;
             set;
         }
@@ -131,6 +137,15 @@ namespace NuGet.Services.Metadata.Catalog.Persistence
             if (fileInfo.Exists)
             {
                 await Task.Run(() => { fileInfo.Delete(); });
+            }
+            else
+            {
+                //For deleting all versions of a package, the folder and its contents should be deleted
+                DirectoryInfo dirInfo = new DirectoryInfo(filename);
+                if (dirInfo.Exists)
+                {
+                    await Task.Run(() => { dirInfo.Delete(true); });
+                }
             }
         }
     }

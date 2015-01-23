@@ -28,7 +28,7 @@ namespace NuGet.Services.Metadata.Catalog
             return new Uri[] { Schema.DataTypes.AppendOnlyCatalog, Schema.DataTypes.Permalink };
         }
 
-        protected override async Task<IDictionary<string, CatalogItemSummary>> SavePages(Guid commitId, DateTime commitTimeStamp, IDictionary<string, CatalogItemSummary> itemEntries)
+        protected override async Task<IDictionary<string, CatalogItemSummary>> SavePages(Guid commitId, DateTime commitTimeStamp, IDictionary<string, CatalogItemSummary> itemEntries, bool largeToSmall = false)
         {
             IDictionary<string, CatalogItemSummary> pageEntries;
             if (_first && !_append)

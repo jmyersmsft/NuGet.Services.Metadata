@@ -30,7 +30,7 @@ namespace NuGet.Canton
             _addons = addons;
         }
 
-        public override async Task Commit(DateTime commitTimeStamp, IGraph commitMetadata = null)
+        public override async Task Commit(DateTime commitTimeStamp, IGraph commitMetadata = null, bool largeToSmall = false)
         {
             if (!_open)
             {

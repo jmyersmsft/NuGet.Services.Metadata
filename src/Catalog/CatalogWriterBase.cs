@@ -7,6 +7,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using VDS.RDF;
+using System.IO;
 
 namespace NuGet.Services.Metadata.Catalog
 {
@@ -53,12 +54,13 @@ namespace NuGet.Services.Metadata.Catalog
 
             _batch.Add(item);
         }
+
         public Task Commit(IGraph commitMetadata = null)
         {
             return Commit(DateTime.UtcNow, commitMetadata);
         }
 
-        public virtual async Task Commit(DateTime commitTimeStamp, IGraph commitMetadata = null)
+        public virtual async Task Commit(DateTime commitTimeStamp, IGraph commitMetadata = null, bool largeToSmall = false)
         {
             if (!_open)
             {
@@ -75,21 +77,21 @@ namespace NuGet.Services.Metadata.Catalog
             Guid commitId = Guid.NewGuid();
 
             //  save items
-
-            IDictionary<string, CatalogItemSummary> newItemEntries = await SaveItems(commitId, commitTimeStamp);
+            IDictionary<string, CatalogItemSummary> newItemEntries = SaveItems(commitId, commitTimeStamp);
 
             //  save index pages - this is abstract as the derived class determines the index pagination
+            IDictionary<string, CatalogItemSummary> pageEntries = await SavePages(commitId, commitTimeStamp, newItemEntries, largeToSmall);
 
-            IDictionary<string, CatalogItemSummary> pageEntries = await SavePages(commitId, commitTimeStamp, newItemEntries);
-
-            //  save index root
-
-            await SaveRoot(commitId, commitTimeStamp, pageEntries, commitMetadata);
+            //  save index root 
+            if (pageEntries != null)
+            {
+                await SaveRoot(commitId, commitTimeStamp, pageEntries, commitMetadata);
+            }
 
             _batch.Clear();
         }
 
-        async Task<IDictionary<string, CatalogItemSummary>> SaveItems(Guid commitId, DateTime commitTimeStamp)
+        protected virtual IDictionary<string, CatalogItemSummary> SaveItems(Guid commitId, DateTime commitTimeStamp)
         {
             ConcurrentDictionary<string, CatalogItemSummary> pageItems = new ConcurrentDictionary<string, CatalogItemSummary>();
 
@@ -132,12 +134,12 @@ namespace NuGet.Services.Metadata.Catalog
                 }
             }
 
-            await Task.WhenAll(saveTasks);
 
+            Task.WhenAll(saveTasks);
             return pageItems;
         }
 
-        async Task SaveRoot(Guid commitId, DateTime commitTimeStamp, IDictionary<string, CatalogItemSummary> pageEntries, IGraph commitMetadata)
+        protected virtual async Task SaveRoot(Guid commitId, DateTime commitTimeStamp, IDictionary<string, CatalogItemSummary> pageEntries, IGraph commitMetadata)
         {
             await SaveIndexResource(RootUri, Schema.DataTypes.CatalogRoot, commitId, commitTimeStamp, pageEntries, null, commitMetadata, GetAdditionalRootType());
         }
@@ -147,7 +149,7 @@ namespace NuGet.Services.Metadata.Catalog
             return null;
         }
 
-        protected abstract Task<IDictionary<string, CatalogItemSummary>> SavePages(Guid commitId, DateTime commitTimeStamp, IDictionary<string, CatalogItemSummary> itemEntries);
+        protected abstract Task<IDictionary<string, CatalogItemSummary>> SavePages(Guid commitId, DateTime commitTimeStamp, IDictionary<string, CatalogItemSummary> itemEntries, bool possiblyLargeToSmall = false);
 
         protected virtual StorageContent CreateIndexContent(IGraph graph, Uri type)
         {
@@ -196,6 +198,7 @@ namespace NuGet.Services.Metadata.Catalog
                 graph.Assert(resourceNode, graph.CreateUriNode(Schema.Predicates.CatalogParent), graph.CreateUriNode(parent));
             }
 
+
             if (extra != null)
             {
                 graph.Merge(extra, true);
@@ -208,15 +211,14 @@ namespace NuGet.Services.Metadata.Catalog
                     graph.Assert(resourceNode, typePredicate, graph.CreateUriNode(resourceType));
                 }
             }
-
-            await SaveGraph(resourceUri, graph, typeUri);
+            await SaveGraph(resourceUri, graph, typeUri, parent);
         }
 
-        protected async Task<IDictionary<string, CatalogItemSummary>> LoadIndexResource(Uri resourceUri)
+        protected async Task<IDictionary<string, CatalogItemSummary>> LoadIndexResource(Uri resourceUri, bool largeToSmall = false)
         {
             IDictionary<string, CatalogItemSummary> entries = new Dictionary<string, CatalogItemSummary>();
 
-            IGraph graph = await LoadGraph(resourceUri);
+            IGraph graph = await LoadGraph(resourceUri, largeToSmall);
 
             if (graph == null)
             {
@@ -295,7 +297,7 @@ namespace NuGet.Services.Metadata.Catalog
             return entries;
         }
 
-        async Task SaveGraph(Uri resourceUri, IGraph graph, Uri typeUri)
+        async Task SaveGraph(Uri resourceUri, IGraph graph, Uri typeUri, Uri parent)
         {
             if (GraphPersistence != null)
             {
@@ -307,9 +309,9 @@ namespace NuGet.Services.Metadata.Catalog
             }
         }
 
-        async Task<IGraph> LoadGraph(Uri resourceUri)
+        async Task<IGraph> LoadGraph(Uri resourceUri, bool largeToSmall = false)
         {
-            if (GraphPersistence != null)
+            if (GraphPersistence != null && !largeToSmall)
             {
                 return await GraphPersistence.LoadGraph(resourceUri);
             }

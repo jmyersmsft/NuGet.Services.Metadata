@@ -7,13 +7,13 @@ using VDS.RDF;
 
 namespace NuGet.Services.Metadata.Catalog
 {
-    public class RegistrationCatalogCollector : SortingGraphCollector
+    public class RegistrationCatalogDeleteCollector : SortingGraphCollector
     {
         StorageFactory _storageFactory;
 
         public
-            RegistrationCatalogCollector(Uri index, StorageFactory storageFactory, Func<HttpMessageHandler> handlerFunc = null)
-            : base(index, new Uri[] { Schema.DataTypes.PackageDetails }, handlerFunc)
+            RegistrationCatalogDeleteCollector(Uri index, StorageFactory storageFactory, Func<HttpMessageHandler> handlerFunc = null)
+            : base(index, new Uri[] { Schema.DataTypes.PackageDelete }, handlerFunc)
         {
             _storageFactory = storageFactory;
 
@@ -29,7 +29,8 @@ namespace NuGet.Services.Metadata.Catalog
 
         protected override Task ProcessGraphs(KeyValuePair<string, IDictionary<string, IGraph>> sortedGraphs)
         {
-            return RegistrationCatalogCreator.ProcessGraphs(
+            
+            return RegistrationCatalogPackageDeleter.ProcessGraphs(
                 sortedGraphs.Key,
                 sortedGraphs.Value,
                 _storageFactory,
