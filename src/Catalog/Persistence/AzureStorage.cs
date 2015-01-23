@@ -4,6 +4,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace NuGet.Services.Metadata.Catalog.Persistence
 {
@@ -58,6 +59,21 @@ namespace NuGet.Services.Metadata.Catalog.Persistence
             return uri;
         }
 
+        //Blob exists
+        public override bool Exists(string fileName)
+        {
+            Uri packageRegistrationUri = ResolveUri(fileName);
+            string blobName = GetName(packageRegistrationUri);
+
+            CloudBlockBlob blob = _directory.GetBlockBlobReference(blobName);
+
+            if (blob.Exists())
+            {
+                return true;
+            }
+            return false;
+        }
+
         //  save
 
         protected override async Task OnSave(Uri resourceUri, StorageContent content)
@@ -91,15 +107,72 @@ namespace NuGet.Services.Metadata.Catalog.Persistence
             return null;
         }
 
-        //  delete
+        //  delete all
+
+        private async Task DeleteAllBlobsInADirectory(CloudBlobDirectory directoryToDelete)
+        {
+            var items = directoryToDelete.ListBlobs();
+            foreach (IListBlobItem item in items)
+            {
+                if (item.GetType() == typeof(CloudBlockBlob) || item.GetType().BaseType == typeof(CloudBlockBlob))
+                {
+                    try
+                    {
+                        await ((CloudBlockBlob)item).DeleteIfExistsAsync();
+                    }
+                    catch (Microsoft.WindowsAzure.Storage.StorageException e)
+                    {
+                        Trace.WriteLine("Blob {0} could not be found" + item.Uri);
+
+                    }
+                }
+                else if (item.GetType() == typeof(CloudBlobDirectory) || item.GetType().BaseType == typeof(CloudBlobDirectory))
+                {
+                    await DeleteAllBlobsInADirectory((CloudBlobDirectory)item);
+                }
+            }
+        }
+
+        //delete
 
         protected override async Task OnDelete(Uri resourceUri)
         {
             string name = GetName(resourceUri);
+            string indexBlobName = "index.json";
 
-            CloudBlockBlob blob = _directory.GetBlockBlobReference(name);
+            if (!String.IsNullOrEmpty(name))
+            {
+                try
+                {
+                    CloudBlockBlob blob = _directory.GetBlockBlobReference(name);
 
-            await blob.DeleteAsync();
+                    await blob.DeleteAsync();
+
+                    //Determine if that was the only version for the package
+                    //If the delete succeeded and the item count is 1 in index.json, then the only version for this package got deleted
+                    Uri indexUri = this.ResolveUri(indexBlobName);
+                    string json = await this.LoadString(indexUri);
+                    int count = Utils.CountItems(json);
+
+                    //If count is one, clean up index.json
+                    if (count == 1)
+                    {
+                        CloudBlockBlob indexBlob = _directory.GetBlockBlobReference(indexBlobName);
+                        await indexBlob.DeleteAsync();
+                    }
+
+                }
+                catch (Microsoft.WindowsAzure.Storage.StorageException e)
+                {
+                    Trace.WriteLine("Blob {0} could not be found" + name);
+
+                }
+            }
+            else //Delete All Versions of a package case
+            {
+                await DeleteAllBlobsInADirectory(_directory);
+
+            }
         }
     }
 }

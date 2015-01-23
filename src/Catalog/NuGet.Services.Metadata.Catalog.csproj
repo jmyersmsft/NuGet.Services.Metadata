@@ -113,6 +113,7 @@
     <Compile Include="CatalogIndexEntry.cs" />
     <Compile Include="CatalogIndexReader.cs" />
     <Compile Include="CommitCollector.cs" />
+    <Compile Include="DeletePackageCatalogItem.cs" />
     <Compile Include="Pipeline\CommitDetailsStage.cs" />
     <Compile Include="Pipeline\GraphPackageMetadata.cs" />
     <Compile Include="Pipeline\NuspecStage.cs" />
@@ -129,6 +130,10 @@
     <Compile Include="Pipeline\PipelinePackage.cs" />
     <Compile Include="Pipeline\PublicationDetailsStage.cs" />
     <Compile Include="Pipeline\XmlStage.cs" />
+    <Compile Include="RegistrationCatalogDeleteCollector.cs" />
+    <Compile Include="RegistrationCatalogDeleteWriter.cs" />
+    <Compile Include="RegistrationCatalogPackageDeleter.cs" />
+    <Compile Include="RegistrationDeleteCatalogItem.cs" />
     <Compile Include="ReindexCatalogCollector.cs" />
     <Compile Include="HttpReadCursor.cs" />
     <Compile Include="NuspecCollector.cs" />
