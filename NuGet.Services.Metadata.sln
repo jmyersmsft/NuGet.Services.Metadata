@@ -57,6 +57,19 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NuGet.Test.WebSite", "tests
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NuGet.Test.ConsoleApp", "tests\AAD\NuGet.Test.ConsoleApp\NuGet.Test.ConsoleApp.csproj", "{22D27042-82DD-49D4-A95D-FD0D9D5D9E1B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NuGet.Services.Messaging", "src\NuGet.Services.Messaging\NuGet.Services.Messaging.csproj", "{E481A372-EFF4-4831-BF85-B310851969B5}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SenderJob", "SenderJob", "{B39A4EB9-C1DF-4037-9F28-7EEAF4E87D1D}"
+	ProjectSection(SolutionItems) = preProject
+		src\SenderJob\MessageSenderJob.cmd = src\SenderJob\MessageSenderJob.cmd
+		src\SenderJob\MessageSenderJob.ps1 = src\SenderJob\MessageSenderJob.ps1
+		src\SenderJob\MessageSenderJob_REST.ps1 = src\SenderJob\MessageSenderJob_REST.ps1
+		src\SenderJob\SenderJob_Config.json = src\SenderJob\SenderJob_Config.json
+		src\SenderJob\SenderJob_Config_Values.json = src\SenderJob\SenderJob_Config_Values.json
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NuGet.Services.Messaging.Tests", "tests\NuGet.Services.Messaging.Tests\NuGet.Services.Messaging.Tests.csproj", "{A4F5F749-94D1-411A-B939-9BCDB3D64926}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
