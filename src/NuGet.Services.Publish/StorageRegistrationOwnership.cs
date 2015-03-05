@@ -4,11 +4,8 @@ using Microsoft.Owin;
 using Microsoft.WindowsAzure.Storage;
 using NuGet.Services.Metadata.Catalog.Ownership;
 using NuGet.Services.Metadata.Catalog.Persistence;
-using NuGet.Versioning;
-using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 
@@ -28,7 +25,7 @@ namespace NuGet.Services.Publish
             _registration = new StorageRegistration(storageFactory);
         }
 
-        public bool IsAuthorized
+        public bool IsAuthenticated
         {
             get
             {
@@ -88,19 +85,19 @@ namespace NuGet.Services.Publish
             return false;
         }
 
-        public Task<bool> IsTenantEnabled()
+        public async Task EnableTenant()
         {
-            return _registration.HasTenant(GetTenantId());
+            await _registration.EnableTenant(GetTenantId());
         }
 
-        public async Task AddTenant()
+        public async Task DisableTenant()
         {
-            await _registration.AddTenant(GetTenantId());
+            await _registration.DisableTenant(GetTenantId());
         }
 
-        public async Task RemoveTenant()
+        public Task<bool> HasTenantEnabled()
         {
-            await _registration.RemoveTenant(GetTenantId());
+            return _registration.HasTenantEnabled(GetTenantId());
         }
 
         async Task<ActiveDirectoryClient> GetActiveDirectoryClient()
@@ -112,30 +109,35 @@ namespace NuGet.Services.Publish
             return _activeDirectoryClient;
         }
 
-        public async Task<bool> RegistrationExists(string domain, string id)
+        public async Task<bool> HasRegistration(string prefix, string id)
         {
-            return await _registration.Exists(new RegistrationId { Domain = domain, Id = id });
+            return await _registration.HasRegistration(new OwnershipRegistration { Prefix = prefix, Id = id });
         }
 
-        public async Task<bool> IsAuthorizedToRegistration(string domain, string id)
+        public async Task<bool> HasOwner(string prefix, string id)
         {
             //IUser user = await GetUser();
             //string userObjectId = user.ObjectId;
             string userObjectId = GetName();
-            return await _registration.HasOwner(new RegistrationId { Domain = domain, Id = id }, userObjectId);
+            return await _registration.HasOwner(
+                new OwnershipRegistration { Prefix = prefix, Id = id },
+                new OwnershipOwner { ObjectId = userObjectId } );
         }
 
-        public async Task AddRegistrationOwner(string domain, string id)
+        public async Task AddVersion(string prefix, string id, string version)
         {
             //IUser user = await GetUser();
             //string userObjectId = user.ObjectId;
-            string userObjectId = GetName();
-            await _registration.AddOwner(new RegistrationId { Domain = domain, Id = id }, userObjectId);
+            string userObjectId = GetUserObjectId();
+            await _registration.AddVersion(
+                new OwnershipRegistration { Prefix = prefix, Id = id },
+                new OwnershipOwner { ObjectId = userObjectId },
+                version);
         }
 
-        public async Task<bool> PackageExists(string domain, string id, string version)
+        public async Task<bool> HasVersion(string prefix, string id, string version)
         {
-            return await _registration.Exists(new PackageId { Domain = domain, Id = id, Version = NuGetVersion.Parse(version) });
+            return await _registration.HasVersion(new OwnershipRegistration { Prefix = prefix, Id = id }, version);
         }
 
         async Task<IUser> GetUser()
@@ -169,15 +171,15 @@ namespace NuGet.Services.Publish
             return tenantId;
         }
 
+        public string GetUserObjectId()
+        {
+            Claim identityObjectIdClaim = ClaimsPrincipal.Current.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier");
+            string objectId = (identityObjectIdClaim != null) ? identityObjectIdClaim.Value : string.Empty;
+            return objectId;
+        }
+
         public string GetUserId()
         {
-            //foreach (Claim claim in ClaimsPrincipal.Current.Claims)
-            //{
-            //    string issuer = claim.Issuer;
-            //    string type = claim.Type;
-            //    string value = claim.Value;
-            //}
-
             Claim userClaim = ClaimsPrincipal.Current.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier");
             string userId = (userClaim != null) ? userClaim.Value : string.Empty;
             return userId;
@@ -190,11 +192,13 @@ namespace NuGet.Services.Publish
             return name;
         }
 
-        public async Task<IList<string>> GetDomains()
+        public Task<IEnumerable<string>> GetDomains()
         {
             IList<string> domains = new List<string>();
 
-            domains.Add("microsoft.com");
+            domains.Add("domain1.com");
+            domains.Add("domain2.com");
+            domains.Add("domain3.com");
 
             /*
             ActiveDirectoryClient activeDirectoryClient = await GetActiveDirectoryClient();
@@ -223,7 +227,45 @@ namespace NuGet.Services.Publish
             }
             */
 
-            return domains;
+            return Task.FromResult<IEnumerable<string>>(domains);
+        }
+
+        public Task<IEnumerable<string>> GetTenants()
+        {
+            IList<string> tenants = new List<string>();
+
+            tenants.Add("tenant1.com");
+            tenants.Add("tenant2.com");
+            tenants.Add("tenant3.com");
+
+            /*
+            ActiveDirectoryClient activeDirectoryClient = await GetActiveDirectoryClient();
+
+            string tenantId = GetTenantId();
+
+            ITenantDetail tenant = activeDirectoryClient.TenantDetails
+                .Where(tenantDetail => tenantDetail.ObjectId.Equals(tenantId))
+                .ExecuteAsync().Result.CurrentPage.FirstOrDefault();
+
+            if (tenant == null)
+            {
+                throw new Exception(string.Format("unable to find tenant with object id = {0}", tenantId));
+            }
+
+            foreach (VerifiedDomain domain in tenant.VerifiedDomains)
+            {
+                if (domain.@default.HasValue && domain.@default.Value)
+                {
+                    domains.Insert(0, domain.Name);
+                }
+                else
+                {
+                    domains.Add(domain.Name);
+                }
+            }
+            */
+
+            return Task.FromResult<IEnumerable<string>>(tenants);
         }
 
         public Task<string> GetPublisherName()

@@ -7,7 +7,9 @@ using System.Collections.Generic;
 using System.Configuration;
 using System.Net;
 using System.Security.Claims;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
+using System.Web;
 
 namespace NuGet.Services.Publish
 {
@@ -52,7 +54,7 @@ namespace NuGet.Services.Publish
             await WriteResponse(context, content, statusCode);
         }
 
-        public static async Task WriteErrorResponse(IOwinContext context, IList<string> errors, HttpStatusCode statusCode)
+        public static async Task WriteErrorResponse(IOwinContext context, IEnumerable<string> errors, HttpStatusCode statusCode)
         {
             JArray array = new JArray();
             foreach (string error in errors)
@@ -99,20 +101,86 @@ namespace NuGet.Services.Publish
             }
         }
 
+        static X509Certificate2 LoadCertificate()
+        {
+            string thumbprint = ConfigurationManager.AppSettings["nuget:Thumbprint"];
+
+            if (string.IsNullOrWhiteSpace(thumbprint))
+            {
+                return null;
+            }
+
+            X509Store certStore = null;
+            try
+            {
+                certStore = new X509Store(StoreName.My, StoreLocation.CurrentUser);
+                certStore.Open(OpenFlags.ReadOnly);
+                X509Certificate2Collection certCollection = certStore.Certificates.Find(X509FindType.FindByThumbprint, thumbprint, false);
+                if (certCollection.Count > 0)
+                {
+                    return certCollection[0];
+                }
+                return null;
+            }
+            finally
+            {
+                if (certStore != null)
+                {
+                    certStore.Close();
+                }
+            }
+        }
+
+        public static string GetTenantId()
+        {
+            Claim tenantClaim = ClaimsPrincipal.Current.FindFirst("http://schemas.microsoft.com/identity/claims/tenantid");
+            string tenantId = (tenantClaim != null) ? tenantClaim.Value : string.Empty;
+            return tenantId;
+        }
+
+        public static string GetUserId()
+        {
+            Claim userClaim = ClaimsPrincipal.Current.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier");
+            string userId = (userClaim != null) ? userClaim.Value : string.Empty;
+            return userId;
+        }
+
         public static async Task<ActiveDirectoryClient> GetActiveDirectoryClient()
         {
-            string authority = string.Format(aadInstance, tenant);
+            string tenantId = GetTenantId();
+
+            string authority = string.Format(aadInstance, tenantId);
 
             AuthenticationContext authContext = new AuthenticationContext(authority);
 
-            ClientCredential clientCredential = new ClientCredential(clientId, appKey);
-            AuthenticationResult result = await authContext.AcquireTokenAsync(graphResourceId, clientCredential);
+            AuthenticationResult result;
+
+            if (string.IsNullOrEmpty(appKey))
+            {
+                //string assertion = Startup.SecurityToken.ToString();
+
+                X509Certificate2 cert = LoadCertificate();
+
+                string authHeader = HttpContext.Current.Request.Headers["Authorization"];
+                string userAccessToken = authHeader.Substring(authHeader.LastIndexOf(' ')).Trim();
+
+                UserAssertion userAssertion = new UserAssertion(userAccessToken);
+
+                ClientAssertionCertificate clientAssertionCertificate = new ClientAssertionCertificate(clientId, cert);
+                result = await authContext.AcquireTokenAsync(graphResourceId, clientAssertionCertificate, userAssertion);
+            }
+            else
+            {
+                ClientCredential clientCredential = new ClientCredential(clientId, appKey);
+                result = await authContext.AcquireTokenAsync(graphResourceId, clientCredential);
+            }
 
             string accessToken = result.AccessToken;
 
-            Uri serviceRoot = new Uri(new Uri(graphResourceId), tenant);
+            Uri serviceRoot = new Uri(new Uri(graphResourceId), tenantId);
 
             ActiveDirectoryClient activeDirectoryClient = new ActiveDirectoryClient(serviceRoot, () => { return Task.FromResult(accessToken); });
+            IUser user = await activeDirectoryClient.Users.GetByObjectId(GetUserId()).ExecuteAsync();
 
             return activeDirectoryClient;
         }

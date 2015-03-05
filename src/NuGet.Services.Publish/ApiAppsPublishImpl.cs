@@ -74,6 +74,14 @@ namespace NuGet.Services.Publish
                 nuspec.Add("category", new JArray("other"));
             }
 
+            JToken jtokenDescription;
+            if (!apiapp.TryGetValue("description", out jtokenDescription))
+            {
+                nuspec.Add("description", apiapp["summary"]);
+            }
+
+            //TODO: add default icons - and these would be present in the inventory - but flagged somehow
+
             string marketplacePublisher = domain.Replace("-", "--").Replace(".", "-");
             nuspec.Add("marketplacePublisher", marketplacePublisher);
 
@@ -164,32 +172,39 @@ namespace NuGet.Services.Publish
             }
             else
             {
-                string id = CheckRequiredProperty(apiapp, errors, "id").ToString();
-
-                if (id.LastIndexOfAny(new[] { '/', '@' }) != -1)
+                JToken idJToken = CheckRequiredProperty(apiapp, errors, "id");
+                if (idJToken != null)
                 {
-                    errors.Add("'/', '@' characters are not permitted in id property");
+                    string id = idJToken.ToString();
+                    if (id.LastIndexOfAny(new[] { '/', '@' }) != -1)
+                    {
+                        errors.Add("'/', '@' characters are not permitted in id property");
+                    }
                 }
 
-                string version = CheckRequiredProperty(apiapp, errors, "version").ToString();
-                SemanticVersion semanticVersion;
-                if (!SemanticVersion.TryParse(version, out semanticVersion))
+                JToken versionJToken = CheckRequiredProperty(apiapp, errors, "version");
+                if (versionJToken != null)
                 {
-                    errors.Add("the version property must follow the Semantic Version rules, refer to 'http://semver.org'");
+                    string version = versionJToken.ToString();
+                    SemanticVersion semanticVersion;
+                    if (!SemanticVersion.TryParse(version, out semanticVersion))
+                    {
+                        errors.Add("the version property must follow the Semantic Version rules, refer to 'http://semver.org'");
+                    }
                 }
 
-                CheckRequiredProperty(apiapp, errors, "description");
+                //CheckRequiredProperty(apiapp, errors, "description");
                 CheckRequiredProperty(apiapp, errors, "title");
                 CheckRequiredProperty(apiapp, errors, "summary");
                 CheckRequiredProperty(apiapp, errors, "author");
                 CheckRequiredProperty(apiapp, errors, "domain");
             }
 
-            CheckRequiredFile(packageStream, errors, "metadata/icons/small-icon.png");
-            CheckRequiredFile(packageStream, errors, "metadata/icons/medium-icon.png");
-            CheckRequiredFile(packageStream, errors, "metadata/icons/large-icon.png");
-            CheckRequiredFile(packageStream, errors, "metadata/icons/hero-icon.png");
-            CheckRequiredFile(packageStream, errors, "metadata/icons/wide-icon.png");
+            //CheckRequiredFile(packageStream, errors, "metadata/icons/small-icon.png");
+            //CheckRequiredFile(packageStream, errors, "metadata/icons/medium-icon.png");
+            //CheckRequiredFile(packageStream, errors, "metadata/icons/large-icon.png");
+            //CheckRequiredFile(packageStream, errors, "metadata/icons/hero-icon.png");
+            //CheckRequiredFile(packageStream, errors, "metadata/icons/wide-icon.png");
 
             if (errors.Count == 0)
             {

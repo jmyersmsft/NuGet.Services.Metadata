@@ -1,4 +1,5 @@
-﻿using Microsoft.Owin;
+﻿using Microsoft.IdentityModel.Clients.ActiveDirectory;
+using Microsoft.Owin;
 using Microsoft.Owin.Security;
 using Microsoft.Owin.Security.ActiveDirectory;
 using Microsoft.WindowsAzure.Storage;
@@ -8,6 +9,7 @@ using System.Configuration;
 using System.IdentityModel.Tokens;
 using System.Net;
 using System.Net.Http;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -19,23 +21,26 @@ namespace NuGet.Services.Publish
     {
         public void Configuration(IAppBuilder app)
         {
-            string audience = ConfigurationManager.AppSettings["ida:Audience"];
-            string tenant = ConfigurationManager.AppSettings["ida:Tenant"];
-            string aadInstance = ConfigurationManager.AppSettings["ida:AADInstance"];
-
-            string metadataAddress = string.Format(aadInstance, tenant) + "/federationmetadata/2007-06/federationmetadata.xml";
-
-            app.UseWindowsAzureActiveDirectoryBearerAuthentication(new WindowsAzureActiveDirectoryBearerAuthenticationOptions
+            if (!HasNoSecurityConfigured())
             {
-                TokenValidationParameters = new TokenValidationParameters
+                string audience = ConfigurationManager.AppSettings["ida:Audience"];
+                string tenant = ConfigurationManager.AppSettings["ida:Tenant"];
+                string aadInstance = ConfigurationManager.AppSettings["ida:AADInstance"];
+
+                string metadataAddress = string.Format(aadInstance, tenant) + "/federationmetadata/2007-06/federationmetadata.xml";
+
+                app.UseWindowsAzureActiveDirectoryBearerAuthentication(new WindowsAzureActiveDirectoryBearerAuthenticationOptions
                 {
-                    ValidAudience = audience,
-                    ValidateIssuer = true,
-                    IssuerValidator = (string issuer, SecurityToken securityToken, TokenValidationParameters validationParameters) => { return issuer; }
-                },
-                Tenant = tenant,
-                MetadataAddress = metadataAddress
-            });
+                    TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidAudience = audience,
+                        ValidateIssuer = true,
+                        IssuerValidator = (string issuer, SecurityToken securityToken, TokenValidationParameters validationParameters) => { return issuer; }
+                    },
+                    Tenant = tenant,
+                    MetadataAddress = metadataAddress
+                });
+            }
 
             app.Run(Invoke);
         }
@@ -89,6 +94,12 @@ namespace NuGet.Services.Publish
                         await uploader.GetDomains(context);
                         break;
                     }
+                case "/tenants":
+                    {
+                        PublishImpl uploader = new ApiAppsPublishImpl(registrationOwnership);
+                        await uploader.GetTenants(context);
+                        break;
+                    }
                 case "/checkaccess":
                     {
                         PublishImpl uploader = new ApiAppsPublishImpl(registrationOwnership);
@@ -118,55 +129,31 @@ namespace NuGet.Services.Publish
                 case "/catalog/nuspec":
                     {
                         PublishImpl uploader = new NuSpecJsonPublishImpl(registrationOwnership);
-                        await uploader.Upload(context, true, false);
-                        break;
-                    }
-                case "/catalog/microservices":
-                    {
-                        PublishImpl uploader = new ApiAppsPublishImpl(registrationOwnership);
-                        await uploader.Upload(context, false, false);
-                        break;
-                    }
-                case "/catalog/microservices/public":
-                    {
-                        PublishImpl uploader = new ApiAppsPublishImpl(registrationOwnership);
-                        await uploader.Upload(context, true, false);
+                        await uploader.Upload(context);
                         break;
                     }
                 case "/catalog/apiapp":
                     {
                         PublishImpl uploader = new ApiAppsPublishImpl(registrationOwnership);
-                        await uploader.Upload(context, false, false);
+                        await uploader.Upload(context);
                         break;
                     }
-                case "/catalog/apiapp/public":
+                case "/tenant/enable":
                     {
                         PublishImpl uploader = new ApiAppsPublishImpl(registrationOwnership);
-                        await uploader.Upload(context, true, false);
+                        await uploader.TenantEnable(context);
                         break;
                     }
-                case "/catalog/apiapp/hidden":
+                case "/tenant/disable":
                     {
                         PublishImpl uploader = new ApiAppsPublishImpl(registrationOwnership);
-                        await uploader.Upload(context, false, true);
+                        await uploader.TenantDisable(context);
                         break;
                     }
-                case "/catalog/apiapp/public/hidden":
+                case "/catalog/powershell":
                     {
-                        PublishImpl uploader = new ApiAppsPublishImpl(registrationOwnership);
-                        await uploader.Upload(context, true, true);
-                        break;
-                    }
-                case "/tenant/add":
-                    {
-                        PublishImpl uploader = new ApiAppsPublishImpl(registrationOwnership);
-                        await uploader.AddTenant(context);
-                        break;
-                    }
-                case "/tenant/remove":
-                    {
-                        PublishImpl uploader = new ApiAppsPublishImpl(registrationOwnership);
-                        await uploader.RemoveTenant(context);
+                        PublishImpl uploader = new PowerShellPublishImpl(registrationOwnership);
+                        await uploader.Upload(context);
                         break;
                     }
                 default:
@@ -180,14 +167,23 @@ namespace NuGet.Services.Publish
 
         IRegistrationOwnership CreateRegistrationOwnership(IOwinContext context)
         {
-            //return new AzureADRegistrationOwnership(context);
+            if (HasNoSecurityConfigured())
+            {
+                return new NoSecurityRegistrationOwnership();
+            }
 
-            string storagePrimary = System.Configuration.ConfigurationManager.AppSettings.Get("Storage.Primary");
-            string storageContainerOwnership = System.Configuration.ConfigurationManager.AppSettings.Get("Storage.Container.Ownership") ?? "ownership";
+            string storagePrimary = ConfigurationManager.AppSettings.Get("Storage.Primary");
+            string storageContainerOwnership = ConfigurationManager.AppSettings.Get("Storage.Container.Ownership") ?? "ownership";
 
             CloudStorageAccount account = CloudStorageAccount.Parse(storagePrimary);
 
             return new StorageRegistrationOwnership(context, account, storageContainerOwnership);
+        }
+
+        bool HasNoSecurityConfigured()
+        {
+            string noSecurity = ConfigurationManager.AppSettings.Get("NoSecurity");
+            return (!string.IsNullOrEmpty(noSecurity) && noSecurity.Equals("true", StringComparison.InvariantCultureIgnoreCase));
         }
     }
 }

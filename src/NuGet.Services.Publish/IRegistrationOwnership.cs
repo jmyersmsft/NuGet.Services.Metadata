@@ -6,26 +6,28 @@ namespace NuGet.Services.Publish
 {
     public interface IRegistrationOwnership
     {
-        bool IsAuthorized { get; }
+        bool IsAuthenticated { get; }
         Task<bool> IsUserAdministrator();
 
-        Task<bool> IsTenantEnabled();
+        Task EnableTenant();
+        Task DisableTenant();
 
-        Task AddTenant();
-        Task RemoveTenant();
+        Task<bool> HasTenantEnabled();
 
-        Task<bool> IsAuthorizedToRegistration(string domain, string id);
-        Task AddRegistrationOwner(string domain, string id);
+        Task AddVersion(string prefix, string id, string version);
 
-        Task<bool> RegistrationExists(string domain, string id);
-        Task<bool> PackageExists(string domain, string id, string version);
+        Task<bool> HasOwner(string prefix, string id);
+        Task<bool> HasRegistration(string prefix, string id);
+        Task<bool> HasVersion(string prefix, string id, string version);
 
         string GetUserId();
         Task<string> GetUserName();
+
         string GetTenantId();
         Task<string> GetTenantName();
 
-        Task<IList<string>> GetDomains();
+        Task<IEnumerable<string>> GetDomains();
+        Task<IEnumerable<string>> GetTenants();
 
         Task<string> GetPublisherName();
     }
