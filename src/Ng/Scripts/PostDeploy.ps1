@@ -3,16 +3,6 @@ $serviceNameC2L = $OctopusParameters["Jobs.Catalog2Lucene.Service.Name"]
 
 $currentDirectory = [string](Get-Location)
 
-# Delete services if they exist
-if (Get-Service $serviceNameC2R -ErrorAction SilentlyContinue)
-{
-    sc.exe delete $serviceNameC2R 
-}
-if (Get-Service $serviceNameC2L -ErrorAction SilentlyContinue)
-{
-    sc.exe delete $serviceNameC2L 
-}
-
 # Install services
 # Uses nssm - from http://nssm.cc/download
 $installC2R = "nssm install $serviceNameC2R $currentDirectory\Catalog2RegistrationV3.cmd"
