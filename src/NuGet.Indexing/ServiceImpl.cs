@@ -224,7 +224,7 @@ namespace NuGet.Indexing
             }
         }
 
-        static JToken AutoCompleteSearch(NuGetSearcherManager searcherManager, string q, string id, string supportedFramework, bool includePrerelease, int skip, int take, bool includeExplanation)
+        public static JToken AutoCompleteSearch(NuGetSearcherManager searcherManager, string q, string id, string supportedFramework, bool includePrerelease, int skip, int take, bool includeExplanation)
         {
             IndexSearcher searcher = searcherManager.Get();
             try
