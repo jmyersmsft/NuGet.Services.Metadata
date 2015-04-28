@@ -40,7 +40,7 @@ namespace NuGet.Canton
                 }
             });
 
-            await ProcessGraphs(new KeyValuePair<string, IDictionary<string, IGraph>>(packageId, graphs));
+            await base.ProcessGraphs(client, new KeyValuePair<string, IDictionary<string, IGraph>>(packageId, graphs));
         }
     }
 }

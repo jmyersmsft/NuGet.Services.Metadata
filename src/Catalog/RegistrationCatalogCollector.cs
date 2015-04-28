@@ -26,12 +26,13 @@ namespace NuGet.Services.Metadata.Catalog
         public int PartitionSize { get; set; }
         public int PackageCountThreshold { get; set; }
 
-        protected override Task ProcessGraphs(KeyValuePair<string, IDictionary<string, IGraph>> sortedGraphs)
+        protected override Task ProcessGraphs(CollectorHttpClient client, KeyValuePair<string, IDictionary<string, IGraph>> sortedGraphs)
         {
             return RegistrationCatalogCreator.ProcessGraphs(
                 sortedGraphs.Key,
                 sortedGraphs.Value,
                 _storageFactory,
+                client,
                 ContentBaseAddress,
                 PartitionSize,
                 PackageCountThreshold);

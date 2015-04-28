@@ -35,10 +35,10 @@ namespace NuGet.Services.Metadata.Catalog
 
             if (graphs.Count > 0)
             {
-                await ProcessGraphs(new KeyValuePair<string, IDictionary<string, IGraph>>(sortedBatch.Key, graphs));
+                await ProcessGraphs(client, new KeyValuePair<string, IDictionary<string, IGraph>>(sortedBatch.Key, graphs));
             }
         }
 
-        protected abstract Task ProcessGraphs(KeyValuePair<string, IDictionary<string, IGraph>> sortedGraphs);
+        protected abstract Task ProcessGraphs(CollectorHttpClient client, KeyValuePair<string, IDictionary<string, IGraph>> sortedGraphs);
     }
 }

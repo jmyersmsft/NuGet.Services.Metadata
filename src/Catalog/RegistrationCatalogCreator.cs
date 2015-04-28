@@ -14,13 +14,7 @@ namespace NuGet.Services.Metadata.Catalog
         static List<string> existingVersionsWithID;
         static List<string> existingVersionsWithoutID;
 
-         public static async Task ProcessGraphs(
-            string id,
-            IDictionary<string, IGraph> sortedGraphs,
-            StorageFactory storageFactory,
-            Uri contentBaseAddress,
-            int partitionSize,
-            int packageCountThreshold)
+         public static async Task ProcessGraphs(string id, IDictionary<string, IGraph> sortedGraphs, StorageFactory storageFactory, CollectorHttpClient httpClient, Uri contentBaseAddress, int partitionSize, int packageCountThreshold)
         {
             int versionAlreadyExistsCount = 0;
             existingVersionsWithID = new List<string>();
@@ -35,7 +29,6 @@ namespace NuGet.Services.Metadata.Catalog
                 int count = Utils.CountItems(json);
 
                 //Determine if there are any versions that are existing already
-                CollectorHttpClient httpClient = new CollectorHttpClient();
                 foreach (var graph in sortedGraphs)
                 {
                     JObject jsonContent = await httpClient.GetJObjectAsync(new Uri(graph.Key));
